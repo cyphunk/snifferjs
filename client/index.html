@@ -1,0 +1,668 @@
+<html>
+<head>
+<!--
+License: Non-White-Heterosexual-Male
+
+If you are not a white heterosexual male you are permitted to copy, sell and use
+this code in any manner you choose without need to include any attribution you
+do not see fit. You are asked as a courtesy to retain this license in any
+derivatives but you are not required. If you are a white heterosexual male you
+are provided the same permissions (reuse, modification, resale) but are
+*required* to include this license in any documentation and any public facing
+code that could be viewed (via browser, terminal or other) or in any file
+distributed publicly. You are also required to attribute the author of whichever
+derivitive your work is based on.
+-->
+<!--
+by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
+-->
+
+<script src="/socket.io/socket.io.js"></script>
+<!-- we need jquery for entropy charts. their standalone framework fails.
+     otherwise i wouldnt use this shit -->
+<script src="client/js/jquery-1.11.1.min.js"></script>
+<script src="client/js/highcharts.js"></script>
+<script src="client/js/map.js"></script>
+<script src="client/js/highmaps.js"></script>
+<script src="client/js/data.js"></script>
+<script src="client/js/exporting.js"></script>
+<script src="client/js/world.js"></script>
+<!-- 'ma is not a function' error is expected, i guess -->
+
+<script>
+
+    // localStorage.debug='*';
+    localStorage.debug='';
+
+    var socket = io.connect('');
+
+    var packet_count = 0;
+
+    // used to resolve IP to name within Pbook data trading and profiling game
+    var use_pbook = false;
+    var pbook_url = 'http://pbook.anon.p/get/given_username/from/ip/';
+
+    var mouse_tick_max = 20; //debounce: mouse must move n pixes before action
+
+    var auto_open_img = false;
+
+
+    //
+    // Generic functions
+    //
+
+    function http_get(theUrl)
+    {
+        var xmlHttp = null;
+        try {
+                xmlHttp = new XMLHttpRequest();
+                xmlHttp.open( "GET", theUrl, false );
+                xmlHttp.send( null );
+            }
+        catch(err) {
+            console.log(err);
+            return null;
+        }
+        return JSON.parse(xmlHttp.responseText);
+    }
+
+    // cross browser shit
+    function xinnerText(elem,newtext) {
+        if (newtext) {
+            if ('innerText' in elem)        // most browsers do this
+                elem.innerText = newtext;
+            else if ('textContent' in elem) // "standards compliant browsers"
+                elem.textContent = newtext; //  (aka only firefox) do this
+            }
+        else {
+            if ('innerText' in elem)
+                return elem.innerText;
+            else if ('textContent' in elem)
+                return elem.textContent;
+            }
+    }
+
+
+    //
+    // Local caches
+    //
+
+    var ip_to_id = (function () {
+        var cache = {};
+        function lookup_ptr(ip) {
+            // console.log(ip+': '+cache[ip]);
+            if (cache[ip]) {
+                return cache[ip];
+            }
+            else {
+                var id = http_get(pbook_url+ip);
+                console.log('ip_to_id: '+id);
+                if (id) {
+                    cache[ip] = id;
+                    return cache[ip];
+                }
+                return null;
+            }
+        }
+        return {
+            ptr: function (ip) {
+                return lookup_ptr(ip);
+            }
+        };
+    }());
+    var geo_cache = (function () {
+        var cache = {};
+        function record_ptr(country) {
+            if (!cache[country])
+                cache[country] = 0;
+            cache[country] += 1;
+            return cache[country];
+        }
+        return {
+            hit: function (country) {
+                return record_ptr(country);
+            },
+            get_data: function () {
+                var data = [];
+                for (country in cache) {
+                    data.push({
+                        code: country.toUpperCase(),
+                        value: cache[country],
+                        name: country
+                        });
+                }
+                return data;
+            }
+        };
+    }());
+
+
+    //
+    // UI FEATURES
+    //
+
+    function toggle_entropy() {
+        var entropybox = document.getElementById('entropybox');
+        var entropygraph = document.getElementById('container');
+        if (entropybox.checked)
+            entropygraph.style.display='block';
+        else
+            entropygraph.style.display='none';
+        entropygraph.style.width   = (window.innerWidth-100)+'px';
+    }
+
+
+    //
+    // SOCKET
+    //
+
+    socket.on('connect', function () {
+        var infobar = document.getElementById('infobar');
+        infobar.className='connected';
+        packet_count = 0;
+    });
+
+    // Socket.io docs suck so hard that one cannot really figure out which
+    // event to poll for connection timeouts. Aint got time for this shit
+    // so...
+
+    var poll_connection = setInterval(function(){
+        if (!socket.connected) {
+            var infobar = document.getElementById('infobar');
+            infobar.className='disconnected';
+        }
+    }, 1000);
+
+
+    //
+    // PACKET LOG
+    //
+
+    // cloning nodes is faster (jsperf.com)
+    var span = document.createElement('span');
+    function newspan (par, text, spanclass) {
+        var newspan = span.cloneNode();
+        xinnerText(newspan, text);
+        if (spanclass)
+            newspan.className=spanclass; // hell we could probably speed things
+        par.appendChild(newspan);        // up by cloning each span type.oh well
+        return newspan;
+    }
+
+    // wait for page to load and then find and define the container var
+    var table, packetcount, user_id, img_box, mouse_tick_count = 0, show_hostnames = false;
+
+    window.onload = function() {
+        table       = document.getElementById('packetlog');
+        packetcount = document.getElementById('packetcount');
+        user_id     = document.getElementById('user_id');
+        img_box     = document.getElementById('img_box');
+        // setup on data TD and source IP to toggle/flter
+        // Check show hostname value
+        if (document.getElementById('shownames').checked)
+            show_hostnames = true;
+
+    }
+    function toggle_names() {
+        var checkbox = document.getElementById('shownames');
+        var elems = document.querySelectorAll(".name");
+        if (checkbox.checked) {
+            show_hostnames = true;
+            for (var i in elems)
+                elems[i].style.display = 'inline';
+        }
+        else {
+            show_hostnames = false;
+            for (var i in elems)
+                elems[i].style.display = 'none';
+        }
+    }
+    function show_user_id_from_ip(ip, xy) {
+        if (!use_pbook)
+            return;
+        var id = ip_to_id.ptr(ip);
+        if(id) {
+            user_id.style.display = 'block';
+            user_id.style.left    = xy.x+'px';
+            user_id.style.top     = xy.y+'px';
+            xinnerText(user_id, id);
+        }
+    }
+
+    function detect_img(content) {
+        return content.match(/\.(jpg|jpeg|png|gif)\s*$/i) ? true : false;
+    }
+
+    function show_img_box(src, xy) {
+        console.log('img: '+src);
+        if(src) {
+            img_box.style.display = 'block';
+            img_box.style.left    = '40px';//xy.x-50+'px';
+            img_box.style.top     = xy.y-200+'px';
+            img_box.innerHTML     = '<img src="http://'+src+'">';
+        }
+    }
+
+    // first time, qssumes clicked to have others other than keepclass hidden
+    var hide_others = true;
+    function toggleRowVisibility(keepclass) {
+        var tr = document.getElementsByTagName('tr');
+
+        for (var i = 0; i < tr.length; i++) {
+            if (!tr[i].classList) // trying to avoid a invalid reference error with this check
+                continue;
+            if(tr[i].classList.contains(keepclass)) {
+                tr[i].style.display ='table-row';
+            }
+            else  {
+                if (hide_others)
+                    tr[i].style.display = 'none';
+                else
+                    tr[i].style.display = '';
+            }
+        }
+        hide_others = !hide_others;
+    }
+
+    // The UI Packet printing meat
+    function newRow(table, dat) {
+        var row = table.insertRow(-1);
+        // give row class 'http_url 10_0_0_1'
+        if (dat.app && dat.app.type) row.className = dat.app.type.replace(/ /g,'_'); // turns 'http url' into 'http_url'
+        if (dat.siplocal)            row.className += ' '+dat.sip.replace(/\./g,'_'); // turns 10.0.0.1 to 10_0_0_1
+        else if (dat.diplocal)       row.className += ' '+dat.dip.replace(/\./g,'_');
+
+
+        var cell_src = row.insertCell(-1);
+        var divider  = row.insertCell(-1).innerHTML = '>>';
+        var cell_dst = row.insertCell(-1);
+        var cell_app = row.insertCell(-1);
+
+
+        if (dat.siplocal && dat.sdevice) newspan(cell_src, dat.sdevice,   'device');
+        if (!dat.siplocal && dat.sgeo)   newspan(cell_src, dat.sgeo.code, 'geo');
+        // prefer mdns name
+        var sname;
+        if (dat.smdnsname)               sname = newspan(cell_src, dat.smdnsname, 'name');
+        else if (dat.sname)              sname = newspan(cell_src, dat.sname,     'name');
+        if (!show_hostnames)             sname.style.display = 'none';
+
+        var left_ip = newspan(cell_src, dat.sip, 'ip');
+        // Handle name resolution for IP
+        if (dat.siplocal) {
+            left_ip.onmouseover = function(event){ // show user_id
+                if(mouse_tick_count++ < mouse_tick_max)
+                    show_user_id_from_ip(dat.sip, {x:event.pageX, y:event.pageY})
+            };
+            left_ip.onmouseout = function() {
+                mouse_tick_count=0;
+                xinnerText(user_id,'');
+                user_id.style.display='none';
+            };
+            //filter for IP (alt+click):
+            left_ip.onclick = function(event){
+                if(event.altKey) {
+                    var filterclass = this.parentElement.parentElement.classList[1];
+                   console.log('toggle filter: '+filterclass); // gets IP class (10_0_0_1) from class list
+                   toggleRowVisibility(filterclass);
+                }
+            }
+        }
+
+        var right_ip = newspan(cell_dst, dat.dip, 'ip')
+        // at the moment sniffer.js only sends outbound packets
+        // so destination ip will never/rarely be local
+        // if (dat.diplocal) {
+        //     right_ip.onhover = show_user_id_from_ip(dat.dip);
+        //     left_ip.onunhover = (function() {user_id.innerText=''});
+        // }
+        // prefer mdns name
+        var dname;
+        if (dat.dmdnsname)               dname = newspan(cell_dst, dat.dmdnsname, 'name');
+        else if (dat.dname)              dname = newspan(cell_dst, dat.dname,     'name');
+        if (!show_hostnames)             dname.style.display = 'none';
+        if (!dat.diplocal && dat.dgeo)   newspan(cell_dst, dat.dgeo.code, 'geo');
+        if (dat.diplocal && dat.ddevice) newspan(cell_dst, dat.ddevice,   'device');
+
+        // geo cache for charts
+        if (dat.sgeo && dat.sgeo.code) geo_cache.hit(dat.sgeo.code);
+        if (dat.dgeo && dat.dgeo.code) geo_cache.hit(dat.dgeo.code);
+
+        // console.log(dat);
+        // console.log(dat.app.type ? true:false); console.log(dat.app);
+        if (dat.app.type) {
+
+            cell_app.className="data "+dat.app.type.replace(' ','_');
+            newspan(cell_app, dat.app.type.toUpperCase(), 'type');
+
+
+            // if (dat.app.type == 'https')  {}
+
+                 if (dat.app.type == 'dns request')   newspan(cell_app, dat.app.name, 'data');
+            else if (dat.app.type == 'dns response')  newspan(cell_app, dat.app.name+' = '+dat.app.ip, 'data');
+            else if (dat.app.type == 'http url')      newspan(cell_app, dat.app.url, 'data');
+            else if (dat.app.type == 'mail')          newspan(cell_app, dat.app.data, 'data');
+
+            // on data TD (last child of TR)
+            if (dat.app.type == 'http url') {
+                if (auto_open_img && detect_img(dat.app.url)) {
+                    url = 'http://'+dat.app.url;
+                    var newtab = window.open(url, '_blank');
+                }
+                cell_app.onmouseover = function(event){
+                    if (detect_img(dat.app.url) && mouse_tick_count++ < mouse_tick_max)
+                        show_img_box(dat.app.url, {x:event.pageX, y:event.pageY})
+                };
+                cell_app.onmouseout = function() {
+                    mouse_tick_count=0; img_box.innerHTML='';
+                    img_box.style.display='none';
+                };
+            }
+            cell_app.onclick=function(event){
+                if(event.altKey) {
+                    var filterclass = this.classList[1];
+                    console.log('toggle: '+filterclass); // gets IP class (10_0_0_1) from class list
+                    toggleRowVisibility(filterclass);
+                }
+                else if (this.classList[1] == 'http_url') {
+                    url = 'http://'+this.querySelector('.data').innerHTML;
+                    window.open(url, '_blank');
+                }
+            };
+
+        }
+
+        return row;
+    }
+
+
+    socket.on('packet', function (data) {
+        var dat = data.data;
+
+        packet_count += 1;
+        xinnerText(packetcount, packet_count+'/'+dat.count);
+
+        newRow(table,dat);
+
+        if (document.getElementById('autoscroll').checked)
+          window.scrollTo(0, document.body.scrollHeight);
+    });
+    socket.on('entropy', function (data) {
+        //console.log(data);
+        var x = data.count; //(new Date()).getTime(); // current time
+        var y = data.entropy;
+        $('#container').highcharts().series[0].addPoint([x, y], true, true);
+    });
+
+
+
+    //
+    // CHARTS
+    //
+
+    // entropy graph structure holds the data and we update it when we get a new
+    // event/packet
+    //
+    // geo location information is stored in local javascript cache and we pull
+    // it on every display:
+
+
+    var load_map, toggle_map;
+    $(function () {
+
+        $(document).ready(function() {
+            Highcharts.setOptions({
+                global: {
+                    useUTC: false
+                }
+            });
+
+            //
+            // Entropy
+            //
+            var chart;
+            $('#container').highcharts({
+                chart: {
+                    // zoomType: 'x',
+                    type: 'area',//'scatter',//'spline',
+                    animation: Highcharts.svg, // don't animate in old IE
+                    marginRight: 10,
+                    events: {
+                        load: function() {
+
+                            // set up the updating of the chart each second
+                            var series = this.series[0];
+                            // setInterval(function() {
+                            //     var x = (new Date()).getTime(), // current time
+                            //         y = Math.random();
+                            //     series.addPoint([x, y], true, true);
+                            // }, 10000);
+                        }
+                    }
+                },
+                title: {
+                    text: 'Entropy'
+                },
+                xAxis: {
+                    // type: 'datetime',
+                    tickPixelInterval: 1 * 3600// * 1000 //150
+                },
+                yAxis: {
+                    max: 8,
+                    min: 0,
+                    title: {
+                        text: 'per byte'
+                    },
+                    plotLines: [{
+                        value: 0,
+                        width: 1,
+                        color: '#808080'
+                    }]
+                },
+                // tooltip: {
+                //     formatter: function() {
+                //             return '<b>'+ this.series.name +'</b><br/>'+
+                //             Highcharts.dateFormat('%Y-%m-%d %H:%M:%S', this.x) +'<br/>'+
+                //             Highcharts.numberFormat(this.y, 2);
+                //     }
+                // },
+                legend: {
+                    enabled: false
+                },
+                exporting: {
+                    enabled: false
+                },
+                series: [{
+                    name: 'Entropy',
+                    // pre init dat
+                    data: (function() {
+                        // generate an array of random data
+                        var data = [],
+                            time = (new Date()).getTime(),
+                            i;
+
+                        for (i = -900; i <= 0; i++) {
+                            // thus far this is the only way ive found to set the
+                            // width of the graph. will show abs(i) data points
+                            data.push({
+                                x: i,//time + i * 10000,
+                                y: 0//Math.random()*7
+                            });
+                        }
+                        return data;
+                    })()
+                }]
+            });
+
+
+
+            load_map = function() {
+                var data = geo_cache.get_data();
+                var max_density = 2;
+                for (i in data)
+                    if (data[i]['value'] > max_density)
+                        max_density = data[i]['value'];
+                $('#mapcontainer').highcharts('Map', {
+
+                    title : {
+                        text : ''
+                    },
+
+                    mapNavigation: {
+                        enabled: true,
+                        enableDoubleClickZoomTo: true
+                    },
+
+                    colorAxis: {
+                        min: 1,
+                        max: max_density,
+                        type: 'logarithmic'
+                    },
+
+                    series : [{
+                        data : data,
+                        mapData: Highcharts.maps['custom/world'],
+                        joinBy: ['iso-a2', 'code'],
+                        name: 'Sessions',
+                        states: {
+                            hover: {
+                                color: '#BADA55'
+                            }
+                        },
+                        tooltip: {
+                            valueSuffix: '/sessions'
+                        }
+                    }]
+                });
+            }
+            toggle_map = function() {
+                var mapbox = document.getElementById('mapbox');
+                var mapgraph = document.getElementById('mapcontainer');
+                if (mapbox.checked)
+                    mapgraph.style.display='block';
+                else
+                    mapgraph.style.display='none';
+                mapgraph.style.width   = (window.innerWidth-100)+'px';
+                mapgraph.style.height   = (window.innerHeight-60)+'px';
+                load_map();
+
+            }
+        });
+    });
+</script>
+<style>
+body {
+    margin:0; padding:0; border:0;
+    font-family: monospace;
+    /*font-family: Helvetica;*/
+    }
+td { padding-left: 0.2em; padding-right: 0.2em; white-space: nowrap;}
+td:nth-child(1) { text-align: right;}
+table{width:100%}
+#infobar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0.8;
+    padding: 0.2em;
+    padding-right: 0.5em;
+}
+#infobar.connected {
+    background-color: #efe; //green means we are conencted, red not
+}
+#infobar.disconnected {
+    background-color: #fcc; //green means we are conencted, red not
+}
+span {
+    padding-left:0.5em;
+    padding-right:0.5em;
+}
+.device {
+    color: red;
+}
+.name {
+    color: grey;
+}
+.ip {
+    font-weight: bold;
+}
+.ip {
+    font-weight: bold;
+}
+
+.data.http_url {
+    background-color:lightgreen;
+}
+.data.dns_request,
+.data.dns_response {
+    background-color:lightblue;
+}
+.data.mail {
+    background-color:orange;
+    color:orange;
+}
+.hidden {
+    visibility: none;
+}
+#user_id {
+    position: absolute;
+    z-index: 9998;
+    background-color: #ccc;
+    padding: 4px 8px 4px 8px;
+    display:none;
+}
+#img_box {
+    position: absolute;
+    z-index: 9998;
+    background-color: #ccc;
+    padding: 4px 8px 4px 8px;
+    display:none;
+}
+#img_box {
+    width: 400px;
+    height: 400px;
+}
+#img_box img {
+    width: 400px;
+    height: 400px;
+}
+#container {
+    opacity: 0.9;
+    display: none;
+    position: fixed;
+    bottom: 30px;
+    left: 30px;
+    min-width: 710px;
+    height: 300px;
+    margin: 0 auto
+}
+#mapcontainer {
+    opacity: 0.9;
+    display: none;
+    position: fixed;
+    top: 60px;
+    left: 30px;
+    min-width: 710px;
+    height: 300px;
+    margin: 0 auto
+}
+</style>
+</head>
+<body><div id="user_id">&nbsp;</div><div id="img_box">&nbsp;</div>
+<div id="infobar" class="disconnected">
+    <span id="packetcount">&nbsp;</span>
+    <input type=checkbox id="autoscroll">autoscroll
+    <input type=checkbox id="shownames" onclick="toggle_names()" checked>names
+    <input type=checkbox onclick="auto_open_img=!auto_open_img">autoimg
+    <input type=checkbox id="entropybox" onclick="toggle_entropy()">entropy
+    <input type=checkbox id="mapbox"onclick="toggle_map()">map
+</div>
+<br>
+<table>
+    <tbody id='packetlog'>
+    </tbody>
+</table>
+<div id="container"></div>
+<div id="mapcontainer"></div>
+</body>
+</html>
