@@ -60,7 +60,7 @@ Install
 If you run into issues make certain if you installed node from sources that you
 installed gyp-node via ``npm install -g gyp-node`` and not apt or rpm.
 
-If you do not plan to run entropy graph code you might remove ffi, ref, exec
+If you do not plan to run entropy graph code you might remove ffi, ref
 modules. If you do run entropy graphs then install libdisorder:
 
 ### Install libdisorder
