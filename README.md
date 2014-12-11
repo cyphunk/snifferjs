@@ -9,8 +9,11 @@ POP / IMAP / HTTP-POST / HTTP-Auth shown. Images shown on mouse hover or
 automatically opened in a new tab/window. This is basically a Wall-Of-Sheep
 implementation for the theatrical stage.
 
-cyphunk@deadhacker.com for use in the Anonymous-P theater production.
-Pull requests appreciated.
+cyphunk@deadhacker.com for use in the Anonymous-P theater production. Pull
+requests appreciated at any of:
+
+* https://git.xiala.net/cyphunk/snifferjs
+* https://github.com/cyphunk/snifferjs
 
 ![Screencast of use](sniffer.js.gif)
 
