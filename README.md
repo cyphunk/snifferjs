@@ -15,7 +15,7 @@ requests appreciated at any of:
 * https://git.xiala.net/cyphunk/snifferjs
 * https://github.com/cyphunk/snifferjs
 
-![Screencast of use](sniffer.js.gif)
+![Screencast of use](./sniffer.gif)
 
 
 License
