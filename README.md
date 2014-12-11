@@ -32,6 +32,7 @@ required to include this license in any documentation and any public facing
 derivative. You are also required to include attribution to the original author
 or to an author responsible for redistribution of a derivative.
 
+http://nonwhiteheterosexualmalelicense.org
 
 Features
 --------
