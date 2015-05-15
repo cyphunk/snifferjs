@@ -1,0 +1,21 @@
+{
+  "name": "snifferjs",
+  "version": "1.1.1",
+  "description": "Network monitor with browser based UI",
+  "author": "Nathan Fain <cyphunk@deadhacker.com>",
+  "homepage": "https://git.xiala.net/cyphunk/snifferjs",
+  "dependencies": {
+    "express": "4.12.3",
+    "exec": "0.2.0",
+    "ffi": "1.3.1",
+    "ieee-oui-lookup": "0.1.0",
+    "maxmind": "0.5.5",
+    "netroute": "0.2.5",
+    "pcap": "1.2.0",
+    "ref": "1.0.1",
+    "socket.io": "1.0.6",
+    "socket.io-client": "1.3.5",
+    "tldjs": "1.5.2"
+  },
+  "private": true
+}
