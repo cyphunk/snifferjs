@@ -56,7 +56,8 @@ Install
 If you are familiar with the docker.io virtual machine framework you can setup
 a new snifferjs container with:
 
-    docker build -t snifferjs https://raw.githubusercontent.com/cyphunk/snifferjs/master/Dockerfile
+    docker build -t snifferjs \
+      https://raw.githubusercontent.com/cyphunk/snifferjs/master/Dockerfile
 
 Otherwise clone this repository and install on your own with:
 
