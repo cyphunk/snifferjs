@@ -167,9 +167,9 @@ var mdns = (function () {
         else {
             if (! requests[ip]) {
                 requests[ip] = true;
-                var exec = require('exec');
+                var exec = require('child_process').execFile;
 		// try to netcast
-                exec(['dig','+noall', '+answer', '+time=1', '-x', ip, '-p','5353', '@224.0.0.251'], function(err, out, code) {
+                exec('dig', ['+noall', '+answer', '+time=1', '-x', ip, '-p','5353', '@224.0.0.251'], function(err, out, code) {
                     //if (err instanceof Error)
                     //   throw err;
                     // if you want to run this request continuesly uncomment:
@@ -187,7 +187,7 @@ var mdns = (function () {
                     //process.exit(code);
             	});
 		// try to host
-                exec(['dig','+noall', '+answer', '+time=1', '-x', ip, '-p','5353', '@'+ip], function(err, out, code) {
+                exec('dig',['+noall', '+answer', '+time=1', '-x', ip, '-p','5353', '@'+ip], function(err, out, code) {
                     if (noserverre.test(out))
                         return null;
                     var name = out.replace(/[\r\n]/g, '').split(/[\t\s]/).slice(-1)[0]
