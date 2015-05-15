@@ -53,7 +53,12 @@ http://nonwhiteheterosexualmalelicense.org
 Install
 -------
 
-Make certain your system has libpcap installed (require pcap.h) and then:
+If you are familiar with the docker.io virtual machine framework you can setup
+a new snifferjs container with:
+
+    docker build -t snifferjs https://raw.githubusercontent.com/cyphunk/snifferjs/master/Dockerfile
+
+Otherwise clone this repository and install on your own with:
 
     cd snifferjs
     # install required and optional node_modules
@@ -62,15 +67,14 @@ Make certain your system has libpcap installed (require pcap.h) and then:
     wget http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz
     gzip -d GeoIP.dat.gz
 
-Alternatively, the included Dockerfile can be used to build a Docker.io
-container.
+Requires libpcap-dev (for node_pcap).
 
 
 Run
 ---
 
     node sniffer.js <interface> ""
-    go to http://localhost:8080
+    open http://localhost:8080
 
 (last arg is optional pcap fitler)
 
