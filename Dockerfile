@@ -16,9 +16,9 @@ RUN apt-get -y install wget # to get GeoIP db
 ### Get sniffer.js code ###
 
 # from remote:
-#RUN apt-get -y install git; git clone https://github.com/cyphunk/snifferjs.git /root/snifferjs
+RUN apt-get -y install git; git clone https://github.com/cyphunk/snifferjs.git /root/snifferjs
 # from local:
-COPY . /root/snifferjs
+#COPY . /root/snifferjs
 
 ### Install sniffer.js dependencies ###
 
@@ -35,5 +35,6 @@ EXPOSE 8080
 
 CMD cd /root/snifferjs; DEFAULTROUTE=$(route -n | head -3 | tail -1 | awk '{print $2}'); node sniffer.js eth0 'ip' ${DEFAULTROUTE}; /bin/bash
 
-# build: docker build -t snifferjs --rm .
-# run:   docker run -p 8080:8080 -it --rm snifferjs
+# build A: docker build -t snifferjs --rm .
+# build B: docker build -t snifferjs https://raw.githubusercontent.com/cyphunk/snifferjs/master/Dockerfile
+# run:     docker run -p 8080:8080 -it --rm snifferjs
