@@ -1,0 +1,26 @@
+{
+  "name"           : "ieee-oui-lookup"
+, "version"        : "0.1.0"
+, "description"    : "fetch, parse, query IEEE OUI database."
+, "author": {
+    "name"           : "Marshall Rose"
+  , "email"          : "mrose17@gmail.com"
+  }
+, "repository": {
+    "type"         : "git",
+    "url"          : "https://github.com/mrose17/node-ieee-oui-lookup.git"
+  } 
+, "bugs"           : {
+    "url"          : "https://github.com/mrose17/node-ieee-oui-lookup/issues"
+  }
+, "keywords"       : [ "MAC address", "IEEE OUI database", "Organizationally unique identifier" ]
+, "main"           : "./index.js"
+, "engines": {
+    "node"         : ">=0.8"
+  }
+, "dependencies"   : {
+    "line-reader"  : "0.2.3"
+  , "sqlite3"      : "3.1.1"
+  }
+, "readmeFilename" : "README.md"
+}

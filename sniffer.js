@@ -53,6 +53,7 @@ var app      = express();
 var server   = require('http').createServer(app);
 var io       = require('socket.io').listen(server);
 server.listen(8080);
+console.log("Starting Sniffer.js server on http 8080")
 var cache    = require('./sniffer_cache.js'); //oui,geo,dns,etc caches
 
 //
@@ -217,7 +218,7 @@ pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
 util.puts(pcap.lib_version);
 
 // Print all devices, currently listening device prefixed with an asterisk
-pcap_session.findalldevs().forEach(function (dev) {
+pcap.findalldevs().forEach(function (dev) {
     if (pcap_session.device_name === dev.name) {
         util.print("* ");
     }
