@@ -324,7 +324,10 @@ var dns = (function () {
 module.exports.dns = dns;
 
 var save = (function () {
-    console.log('save all caches');
+    console.log('save all caches in ./data');
+    if (!fs.existsSync("./data")){
+       fs.mkdirSync("./data");
+    }    
     oui.save();
     geo.save();
     mdns.save();

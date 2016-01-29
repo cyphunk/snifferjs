@@ -1,6 +1,6 @@
 {
   "name": "snifferjs",
-  "version": "1.1.1",
+  "version": "2.2.2",
   "description": "Network monitor with browser based UI",
   "author": "Nathan Fain <cyphunk@deadhacker.com>",
   "homepage": "https://git.xiala.net/cyphunk/snifferjs",
