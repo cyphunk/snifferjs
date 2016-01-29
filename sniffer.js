@@ -48,6 +48,7 @@ var PROCESS_EXIT_WAIT = 1500; // need to wait on exit so file saves complete
 
 var util     = require('util');
 var pcap     = require("pcap"), pcap_session;
+var DNS = require("pcap/decode/dns"); // pcap@2.0.1 dns decoding requires
 var express  = require('express')
 var app      = express();
 var server   = require('http').createServer(app);
@@ -286,9 +287,14 @@ var is_broadcast_ip = function (ip) {
 
 var parse_packet = function(packet, callback) {
 
-    // console.log(util.inspect(packet.link.ip));
+
     // if not an internet IP packet than skip
-    if (!packet.link || !packet.link.shost || !packet.link.ip || !packet.link.ip.saddr)
+
+    // pcap@<=1.2.0
+    // if (!packet.link || !packet.link.shost || !packet.link.ip || !packet.link.ip.saddr)
+    // pcap@2.0.1
+    if (!packet.payload || !packet.payload.payload || !packet.payload.payload.saddr)
+        //      ethernet           ether   ip                 ether   ip      addr
         return null
 
     var dat = {}; // what we send to the client
@@ -296,18 +302,18 @@ var parse_packet = function(packet, callback) {
 
 
     // MAC ADDRESS DEVICE MANUFACTURER RESOLUTION
-    var soui     = packet.link.shost.substring(0,8);
+    var soui     = packet.payload.shost.toString().substring(0,8);
     dat.sdevice  = cache.oui.ptr(soui);
-    var doui     = packet.link.dhost.substring(0,8);
+    var doui     = packet.payload.dhost.toString().substring(0,8);
     dat.ddevice  = cache.oui.ptr(doui);
     if (dat.sdevice) dat.sdevice = dat.sdevice.split(' ')[0] // cleanup
     if (dat.ddevice) dat.ddevice = dat.ddevice.split(' ')[0]
 
 
     // IP's
-    dat.sip      = packet.link.ip.saddr;
+    dat.sip      = packet.payload.payload.saddr.toString();
     dat.siplocal = is_local_ip(dat.sip);
-    dat.dip      = packet.link.ip.daddr;
+    dat.dip      = packet.payload.payload.daddr.toString();
     dat.diplocal = is_local_ip(dat.dip);
     // used for cache key:
     var iplocal;
@@ -355,7 +361,7 @@ var parse_packet = function(packet, callback) {
 
     // use DNS queries to populate reverse IP cache
     debugger;
-    if (packet.link.ip.udp && packet.link.ip.udp.dns) {
+    if (packet.payload.payload.payload.decoderName === 'udp' && (packet.payload.payload.payload.sport === 53 || packet.payload.payload.payload.dport === 53)) {
         // register this port being matched
         // actually the new_port cache is not used yet
         // but could be used in the future to change
@@ -363,33 +369,33 @@ var parse_packet = function(packet, callback) {
         // port/servics access
         cache.new_port.ptr(iplocal, 'dns');
 
-        var dns = packet.link.ip.udp.dns;
-        if (dns.answer.length > 0) {
-            for (var i=0; i < dns.answer.length; i++) {
-                if (dns.answer[i].data && dns.answer[i].data.ipAddress && dns.answer[i].name) {
+        var dns = new DNS().decode(packet.payload.payload.payload.data, 0, packet.payload.payload.payload.data.length);
+        if (dns.answer.rrs.length > 0) {
+            for (var i=0; i < dns.answer.rrs.length; i++) {
+                if (dns.answer.rrs[i].rdata && dns.answer.rrs[i].rdata.addr && dns.answer.rrs[i].name) {
                     // register this application was parsed
                     var new_data = cache.new_data.ptr(iplocal, 'dns');
 
                     // populate dns cache with the response
-                    cache.dns.insert(dns.answer[i].data.ipAddress, dns.answer[i].name);
+                    cache.dns.insert(dns.answer.rrs[i].rdata.addr.toString(), dns.answer.rrs[i].name);
 
                     // prepare data to be sent to client
                     if (!DNS_ONLY_FIRST || new_data) {
                         dat.app.type = 'dns response';
-                        dat.app.name = dns.answer[i].name.split('.').slice(-3).join('.'); //only last 3 octets of a domain
-                        dat.app.ip   = dns.answer[i].data.ipAddress;
+                        dat.app.name = dns.answer.rrs[i].name.split('.').slice(-3).join('.'); //only last 3 octets of a domain
+                        dat.app.ip   = dns.answer.rrs[i].rdata.addr.toString();
                     }
                 }
             }
         }
-        else if (dns.question.length > 0) {
-            for (var i=0; i < dns.question.length; i++) {
-                if (dns.question[i].qtype && dns.question[i].qtype === 'A' && dns.question[i].qname) {
+        else if (dns.question.rrs.length > 0) {
+            for (var i=0; i < dns.question.rrs.length; i++) {
+                if (dns.question.rrs[i].type && dns.question.rrs[i].type === 1/*'A'*/ && dns.question.rrs[i].name) {
                     var new_data = cache.new_data.ptr(iplocal, 'dns');
 
                     if (!DNS_ONLY_FIRST || new_data) {
                         dat.app.type = 'dns request';
-                        dat.app.name = dns.question[i].qname.split('.').slice(-3).join('.');
+                        dat.app.name = dns.question.rrs[i].name.split('.').slice(-3).join('.');
                     }
                 }
             }
@@ -398,12 +404,12 @@ var parse_packet = function(packet, callback) {
 
     // HTTP
     // only checking dport to reduce amount of packets
-    else if (packet.link.ip.tcp && (packet.link.ip.tcp.dport === 80)) { // || packet.link.ip.tcp.sport === 80)) {
+    else if (packet.payload.payload.payload.decoderName === 'tcp' && packet.payload.payload.payload.dport === 80) {// || packet.payload.payload.payload.sport === 80)) {
         cache.new_port.ptr(iplocal, 'http');
 
-        var tcp = packet.link.ip.tcp;
+        var tcp = packet.payload.payload.payload
 
-        if (tcp.data_bytes) {
+        if (tcp.data) {
             if (detect_http_request(tcp.data)){
                 var url = http_request_content(tcp.data);
 
@@ -417,14 +423,14 @@ var parse_packet = function(packet, callback) {
                 }
 
                 if (VERBOSE_DEBUG)
-                    console.log("HTTP DATA:\n"+tcp.data.toString('utf8', 0, tcp.data.length));
+                    console.log("HTTP DATA:\n"+tcp.data.toString('utf8', 0, tcp.dataLength));
             }
         }
     }
 
     // HTTPS
     // only checking dport to reduce amount of packets
-    else if (packet.link.ip.tcp && (packet.link.ip.tcp.dport === 443)) { // || packet.link.ip.tcp.sport === 443)) {
+    else if (packet.payload.payload.payload.decoderName === 'tcp' && packet.payload.payload.payload.dport === 443) {// || packet.payload.payload.payload.sport === 443)) {
         cache.new_port.ptr(iplocal, 'https');
         var new_data = cache.new_data.ptr(iplocal, 'https');
 
@@ -436,10 +442,10 @@ var parse_packet = function(packet, callback) {
 
     // MAIL
     // only checking dport to reduce amount of packets
-    else if (packet.link.ip.tcp && (packet.link.ip.tcp.dport === 143 || packet.link.ip.tcp.dport === 110)) { // || packet.link.ip.tcp.sport === 443)) {
+    else if (packet.payload.payload.payload.decoderName === 'tcp' && (packet.payload.payload.payload.dport === 143 || packet.payload.payload.payload.dport === 110)) {// || packet.payload.payload.payload.sport === 443)) {
         cache.new_port.ptr(iplocal, 'mail');
 
-        var tcp = packet.link.ip.tcp;
+        var tcp = packet.payload.payload.payload
 
         if (tcp.data_bytes) {
             if (!MAIL_ONLY_LOGIN || detect_mail_login_request(tcp.data)) {
@@ -458,7 +464,7 @@ var parse_packet = function(packet, callback) {
     }
 
     // MAILS
-    else if (packet.link.ip.tcp && (packet.link.ip.tcp.dport === 993 || packet.link.ip.tcp.dport === 995)) { // || packet.link.ip.tcp.sport === 443)) {
+    else if (packet.payload.payload.payload.decoderName === 'tcp' && (packet.payload.payload.payload.dport === 993 || packet.payload.payload.payload.dport === 995)) {// || packet.payload.payload.payload.sport === 443)) {
         cache.new_port.ptr(iplocal, 'mails');
         var new_data = cache.new_data.ptr(iplocal, 'mails');
         // only show first mails
@@ -480,7 +486,7 @@ var parse_packet = function(packet, callback) {
 
 
 
-    else if (packet.link.ip.tcp || packet.link.ip.udp){
+    else if (packet.payload.payload.payload.decoderName === 'tcp' || packet.payload.payload.payload.decoderName === 'tcp') {
         // if (MAKE_STATE_CHANGE_ON_HIDDEN_OTHER)
         //     cache.new_data.ptr(dat.siplocal ? dat.sip : dat.dip, 000);
 

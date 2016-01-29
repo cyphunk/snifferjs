@@ -53,22 +53,16 @@ http://nonwhiteheterosexualmalelicense.org
 Install
 -------
 
-If you are familiar with the docker.io virtual machine framework you can setup
-a new snifferjs container with:
+Requires node libpcap-dev installed on your system.
 
-    docker build -t snifferjs \
-      https://raw.githubusercontent.com/cyphunk/snifferjs/master/Dockerfile
-
-Otherwise clone this repository and install on your own with:
-
+    git clone https://git.xiala.net/cyphunk/snifferjs.git
     cd snifferjs
-    # install required and optional node_modules
     npm install
-    # download Maxmind GeoIP dat
+
+For resolving IP addresses to Geo Location download the Maxmind free dataset
+
     wget http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz
     gzip -d GeoIP.dat.gz
-
-Requires libpcap-dev (for node_pcap).
 
 
 Run
@@ -77,7 +71,14 @@ Run
     node sniffer.js <interface> ""
     open http://localhost:8080
 
-(last arg is optional pcap fitler)
+(last arg is optional pcap fitler. e.g "ip")
+
+
+Sniffer.js has been tested with
+
+    * node 4.2.6
+    * npm 2.14.12
+    * node-gyp 3.0.3
 
 
 Configuration
@@ -100,6 +101,20 @@ ONLY_OUTGOING=true    Only show packets going out from 192.168 10. and 172.
                       networks. (AT THE MOMENT NOT AVAILABLE. ONLY_OUTGOING
                       is the default behavior)
 ```
+
+Installation Alternatives
+-------------------------
+
+docker.io
+
+    docker build -t snifferjs \
+      https://raw.githubusercontent.com/cyphunk/snifferjs/master/Dockerfile
+
+Older node v0.10.25 npm v1.3.24
+
+    git reset --hard a68b74beef81d196969a0b9a06e25a2975f6b001
+    rm -rf node_modules
+    npm install
 
 
 Etc
