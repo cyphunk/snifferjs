@@ -6,7 +6,8 @@ Written by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
 // could definitely reduce this down to one or two types of generic cache
 
 
-var ieeeoui = require('ieee-oui-lookup');
+//var ieeeoui = require('ieee-oui-lookup');
+var ieeeoui = require('./sniffer_cache_oui');
 var maxmind = require('maxmind');
 var dnser   = require('dns');
 var fs      = require('fs');
@@ -43,6 +44,7 @@ var oui = (function () {
                 ieeeoui.lookup(macoui, function(err, name) {
                   if (err) {
                     cache[macoui] = '';
+                    console.log('cache oui:', err);
                   }
                   else {
                     cache[macoui] = name;

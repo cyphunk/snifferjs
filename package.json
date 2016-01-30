@@ -18,7 +18,7 @@
     "maxmind": "0.5.5",
     "socket.io": "1.0.6",
 
-    "ieee-oui-lookup": "file:./node-ieee-oui-lookup"
+    "sqlite3": "3.1.1",
   },
   "private": true
 }

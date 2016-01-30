@@ -54,7 +54,7 @@ var app      = express();
 var server   = require('http').createServer(app);
 var io       = require('socket.io').listen(server);
 server.listen(8080);
-console.log("Starting Sniffer.js server on http 8080")
+console.log("Starting Sniffer.js server on http 8080");
 var cache    = require('./sniffer_cache.js'); //oui,geo,dns,etc caches
 
 //
@@ -93,8 +93,7 @@ if (process.getuid() != 0) {
 
 console.log('clear your DNS cache after start. sudo killall -HUP mDNSResponder');
 if (process.argv.length < 3) {
-    util.error("usage: simple_capture interface filter");
-    util.error("Examples: ");
+    util.error("Example use: ");
     util.error('  sudo node sniffer.js "" "tcp port 80"');
     util.error('  sudo node sniffer.js eth1 ""');
     util.error('  sudo node sniffer.js lo0 "ip proto \\tcp and tcp port 80"');
@@ -293,7 +292,7 @@ var parse_packet = function(packet, callback) {
     // pcap@<=1.2.0
     // if (!packet.link || !packet.link.shost || !packet.link.ip || !packet.link.ip.saddr)
     // pcap@2.0.1
-    if (!packet.payload || !packet.payload.payload || !packet.payload.payload.saddr)
+    if (!packet.payload || !packet.payload.payload || !packet.payload.payload.saddr || !packet.payload.payload.payload)
         //      ethernet           ether   ip                 ether   ip      addr
         return null
 
