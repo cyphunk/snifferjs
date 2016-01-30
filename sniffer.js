@@ -103,7 +103,7 @@ if (process.argv.length < 3) {
 
 // Setup PCAP interface now with root permissions and then downgrade to low priv
 pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
-console.log('libpcap version: '+pcap.lib_version);
+console.log(pcap.lib_version);
 console.log('change process uid/gid to \"'+__filename+'\" owner')
 require('fs').stat(__filename, function(err,s) { process.setgid(s.gid); process.setuid(s.uid);});
 
@@ -219,7 +219,7 @@ var mail_request_content = function (buf) {
 
 
 
-
+console.log("\nNetwork interfaces (*=chosen):");
 pcap.findalldevs().forEach(function (dev) {
     if (pcap_session.device_name === dev.name) {
         process.stdout.write("* ");
