@@ -101,6 +101,13 @@ if (process.argv.length < 3) {
     process.exit(1);
 }
 
+// Setup PCAP interface now with root permissions and then downgrade to low priv
+pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
+console.log('libpcap version: '+pcap.lib_version);
+console.log('change process uid/gid to \"'+__filename+'\" owner')
+require('fs').stat(__filename, function(err,s) { process.setgid(s.gid); process.setuid(s.uid);});
+
+
 process.on( 'SIGINT', function() {
     console.log( "\nGracefully shutting down from SIGINT (Ctrl-C)" );
     save_state();
@@ -213,11 +220,6 @@ var mail_request_content = function (buf) {
 
 
 
-// Setup PCAP interface with argument filter
-pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
-util.puts(pcap.lib_version);
-
-// Print all devices, currently listening device prefixed with an asterisk
 pcap.findalldevs().forEach(function (dev) {
     if (pcap_session.device_name === dev.name) {
         util.print("* ");
