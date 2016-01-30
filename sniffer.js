@@ -222,16 +222,16 @@ var mail_request_content = function (buf) {
 
 pcap.findalldevs().forEach(function (dev) {
     if (pcap_session.device_name === dev.name) {
-        util.print("* ");
+        process.stdout.write("* ");
     }
-    util.print(dev.name + " ");
+    process.stdout.write(dev.name + " ");
     if (dev.addresses.length > 0) {
         dev.addresses.forEach(function (address) {
-            util.print(address.addr + "/" + address.netmask);
+            process.stdout.write(address.addr + "/" + address.netmask);
         });
-        util.print("\n");
+        process.stdout.write("\n");
     } else {
-        util.print("no address\n");
+        process.stdout.write("no address\n");
     }
 });
 
@@ -249,7 +249,7 @@ else {
     }
 }
 
-util.print("default gw " + gatewayip +"\n");
+console.log("default gw " + gatewayip +"\n");
 
 
 // Routinely check for dropped packets
