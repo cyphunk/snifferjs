@@ -8,9 +8,11 @@ var readline    = require('readline');
 var sqlite3     = require('sqlite3').verbose();
 
 var OUI_URL = 'http://standards-oui.ieee.org/oui/oui.txt';
-var OUI_TXT = __dirname + '/oui.txt';
-var OUI_DB  = __dirname + '/oui.db';
+var OUI_URL = 'http://localhost:8000/testoui10k.txt';
+var OUI_TXT = __dirname + '/sniffer_cache_oui.txt';
+var OUI_DB  = __dirname + '/sniffer_cache_oui.db';
 
+var debug = true;
 
 exports.start = function(cb) {
   fs.exists(OUI_DB, function(exists) {
@@ -22,17 +24,17 @@ exports.start = function(cb) {
     fs.stat(OUI_TXT, function(err, st1) {
       // on error or txt file older than 30 days: fetch (will call parse on finish)
       if ((!!err) || (st1.mtime.getTime() <= (new Date().getTime() - (30 * 86400 * 1000))))
-        return fetch(exports.db, cb);
+        return fetch(cb);
 
 
       fs.stat(OUI_DB, function(err, st2) {
         // on error or txt file is newer than db
         if ((!!err) || (st1.mtime.getTime() >= st2.mtime.getTime()))
-            return parse(exports.db, cb);
+            return parse(cb);
 
         // if here: txt file isnt old and db file isn't new. So just load:
-        if (exports.db) exports.db.close();
-        exports.db = new sqlite3.Database(OUI_DB);
+        //if (exports.db) exports.db.close();
+        //exports.db = new sqlite3.Database(OUI_DB);
         cb(null, null);
       });
     });
@@ -52,36 +54,43 @@ exports.lookup = function(oui, cb) {
 
 
 var create = function(cb) {
+  debug && cb(null, "create new db");
   var db = new sqlite3.Database(OUI_DB);
+  exports.db = db;
 
   db.run('CREATE TABLE IF NOT EXISTS oui(id INTEGER PRIMARY KEY ASC, h6 TEXT, name TEXT)', function(err) {
-    if (!!err) console.log(err);
+    if (!!err)
+        console.log(err);
 
     fs.stat(OUI_TXT, function(err, st1) {
       // on error or txt file older than 30 days: fetch (will call parse on finish)
-      if ((!!err) || (st1.mtime.getTime() < (new Date().getTime() - (30 * 86400 * 1000)))) return fetch(null, cb);
+      if ((!!err) || (st1.mtime.getTime() < (new Date().getTime() - (30 * 86400 * 1000))))
+        return fetch(cb);
 
-      parse(db, cb);
+      parse(cb);
     });
   });
 };
 
-var fetch = function(db, cb) {
+var fetch = function(cb) {
     // handle cases where ieee site offline or network unavailble by loading to tmp
-    cb(null, "downloading "+OUI_URL);
+    debug && cb(null, "begin downloading "+OUI_URL+". To avoid, stop process and touch "+OUI_TXT);
+
     var f = fs.createWriteStream(OUI_TXT+'.tmp');
     f.on('finish', function(){
+        debug && cb(null, "finished downloading "+OUI_URL);
         fs.rename(OUI_TXT+'.tmp', OUI_TXT, function() {
-            parse(db, cb) }); });
+            parse(cb) }); });
     f.on('error', function(){
-        fs.unlink(OUI_TXT+'.tmp');
-        cb(err, null) });
+        cb(err, null);
+        fs.unlink(OUI_TXT+'.tmp') });
+
     var request = http.get(OUI_URL, function(response) {
               response.setEncoding('utf8');
               response.pipe(f) });
     request.on('error', function(err) {
-        fs.unlink(OUI_TXT+'.tmp');
-        cb(err, null) });
+        cb(err, null);
+        fs.unlink(OUI_TXT+'.tmp') });
     request.end();
 
 };
@@ -95,12 +104,15 @@ var fetch = function(db, cb) {
                             UNITED STATES
 */
 
-var parse = function(db, cb) {
+var parse = function(cb) {
   var info = { count: 0, errors: 0 };
 
-  db = db || new sqlite3.Database(OUI_DB);
+  if (!exports.db) { debug && cb({message:"no db"}, null); }
 
+  debug && cb(null, "begin parsing "+OUI_TXT);
   var rl = readline.createInterface({ input: fs.createReadStream(OUI_TXT)});
+
+  items = [];
   rl.on('line', function(line) {
       var h6, id, name;
 
@@ -114,14 +126,37 @@ var parse = function(db, cb) {
 
       if ((!!h6) && (h6.length === 6) && (!!name) && (name.length > 0)) {
         id = parseInt(h6.trimLeft('0'), 16);
-
-        db.run('INSERT INTO oui(id, h6, name) VALUES($id, $h6, $name)', { $id: id, $h6: h6, $name: name }, function(err) {
-          if (!!err) { info.errors++; cb(err, null); } else info.count++;
+        items.push( {'id': id, 'h6':h6,'name':name} );
+        // this method:
+        exports.db.serialize(function() {
+        exports.db.run('INSERT OR REPLACE INTO oui(id, h6, name) VALUES($id, $h6, $name)', { $id: id, $h6: h6, $name: name }, function(err) {
+          if (!!err) { info.errors++; cb(err, null); }
+          else { info.count++;  /*console.log(info.count+": "+id);*/ }
         });
+        });
+
       }
   });
+
+// this method appears to cause disk errors
+  var insert_items = function(i) {
+      if (i >= items.length) {
+          debug && cb(null, "finshed adding to db");
+          return;
+      }
+      debug && console.log(items[i].id);
+      exports.db.run('INSERT OR REPLACE INTO oui(id, h6, name) VALUES($id, $h6, $name)', { $id: items[i].id, $h6: items[i].h6, $name: items[i].name }, function(err) {
+        if (!!err) { info.errors++; cb(err, null); }
+        else { info.count++; insert_items(i+1) };
+      });
+
+  }
   rl.on('close', function(){
-      exports.db = db;
+      debug && cb(null, "finished parsing "+OUI_TXT);
+      debug && cb(null, "begin adding to db"+OUI_DB);
+      //insert_items(0);
+
+      //exports.db = db;
       cb(null, info);
   });
 };
