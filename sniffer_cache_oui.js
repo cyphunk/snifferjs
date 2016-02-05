@@ -11,6 +11,7 @@ var OUI_URL = 'http://standards-oui.ieee.org/oui/oui.txt';
 var OUI_URL = 'http://localhost:8000/testoui10k.txt';
 var OUI_TXT = __dirname + '/sniffer_cache_oui.txt';
 var OUI_DB  = __dirname + '/sniffer_cache_oui.db';
+var FETCH_EVERY_N_DAYS = 30; // fetch oui.txt
 
 var debug = true;
 
@@ -18,12 +19,12 @@ exports.start = function(cb) {
   fs.exists(OUI_DB, function(exists) {
     if (!exists)
         return create(cb);
-
-    exports.db = new sqlite3.Database(OUI_DB);
+    else
+        exports.db = new sqlite3.Database(OUI_DB);
 
     fs.stat(OUI_TXT, function(err, st1) {
       // on error or txt file older than 30 days: fetch (will call parse on finish)
-      if ((!!err) || (st1.mtime.getTime() <= (new Date().getTime() - (30 * 86400 * 1000))))
+      if ((!!err) || (st1.mtime.getTime() <= (new Date().getTime() - (FETCH_EVERY_N_DAYS * 86400 * 1000))))
         return fetch(cb);
 
 
@@ -47,16 +48,17 @@ exports.lookup = function(oui, cb) {
   if (h6.length != 6) return cb(new Error('not an OUI'), null);
   if (!exports.db) return cb(new Error('database not ready'), null);
 
+  exports.db.serialize(function() {
   exports.db.get('SELECT * FROM oui WHERE h6=$h6 LIMIT 1', { $h6: h6 }, function(err, row) {
     cb(err ? err : null, (!!row) ? row.name : null);
-  });
+});
+});
 };
 
 
 var create = function(cb) {
   debug && cb(null, "create new db");
-  var db = new sqlite3.Database(OUI_DB);
-  exports.db = db;
+  exports.db =  new sqlite3.Database(OUI_DB);
 
   db.run('CREATE TABLE IF NOT EXISTS oui(id INTEGER PRIMARY KEY ASC, h6 TEXT, name TEXT)', function(err) {
     if (!!err)
@@ -64,7 +66,7 @@ var create = function(cb) {
 
     fs.stat(OUI_TXT, function(err, st1) {
       // on error or txt file older than 30 days: fetch (will call parse on finish)
-      if ((!!err) || (st1.mtime.getTime() < (new Date().getTime() - (30 * 86400 * 1000))))
+      if ((!!err) || (st1.mtime.getTime() < (new Date().getTime() - (FETCH_EVERY_N_DAYS * 86400 * 1000))))
         return fetch(cb);
 
       parse(cb);
@@ -110,7 +112,7 @@ var parse = function(cb) {
   if (!exports.db) { debug && cb({message:"no db"}, null); }
 
   debug && cb(null, "begin parsing "+OUI_TXT);
-  var rl = readline.createInterface({ input: fs.createReadStream(OUI_TXT)});
+  var rl = readline .createInterface({ input: fs.createReadStream(OUI_TXT)});
 
   items = [];
   rl.on('line', function(line) {
@@ -128,36 +130,22 @@ var parse = function(cb) {
         id = parseInt(h6.trimLeft('0'), 16);
         items.push( {'id': id, 'h6':h6,'name':name} );
         // this method:
-        exports.db.serialize(function() {
-        exports.db.run('INSERT OR REPLACE INTO oui(id, h6, name) VALUES($id, $h6, $name)', { $id: id, $h6: h6, $name: name }, function(err) {
-          if (!!err) { info.errors++; cb(err, null); }
-          else { info.count++;  /*console.log(info.count+": "+id);*/ }
-        });
-        });
 
       }
   });
 
-// this method appears to cause disk errors
-  var insert_items = function(i) {
-      if (i >= items.length) {
-          debug && cb(null, "finshed adding to db");
-          return;
-      }
-      debug && console.log(items[i].id);
-      exports.db.run('INSERT OR REPLACE INTO oui(id, h6, name) VALUES($id, $h6, $name)', { $id: items[i].id, $h6: items[i].h6, $name: items[i].name }, function(err) {
-        if (!!err) { info.errors++; cb(err, null); }
-        else { info.count++; insert_items(i+1) };
-      });
-
-  }
   rl.on('close', function(){
-      debug && cb(null, "finished parsing "+OUI_TXT);
+      debug && cb(null, "finished parsing");
       debug && cb(null, "begin adding to db"+OUI_DB);
-      //insert_items(0);
-
-      //exports.db = db;
-      cb(null, info);
+      items.forEach(function(e, i) {
+          exports.db.serialize(function() {
+              exports.db.run('INSERT OR REPLACE INTO oui(id, h6, name) VALUES($id, $h6, $name)', { $id: e.id, $h6: e.h6, $name: e.name }, function(err) {
+                if (i == items.length-1) debug && cb(null, "finished adding to db: count "+info.count+", errors "+info.errors);
+                if (!!err) { info.errors++; cb(err, null); }
+                else { info.count++;  debug && info.count%1000==0 && cb(null, info.count+" loaded"); }
+              });
+          });
+      });
   });
 };
 
