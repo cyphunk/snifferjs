@@ -53,9 +53,7 @@ var express  = require('express')
 var app      = express();
 var server   = require('http').createServer(app);
 var io       = require('socket.io').listen(server);
-server.listen(8080);
-console.log("Starting Sniffer.js server on http 8080");
-var cache    = require('./sniffer_cache.js'); //oui,geo,dns,etc caches
+var cache    = null; // loaded later when lowered process from root priv
 
 //
 // libdisorder for entropy graphing
@@ -74,39 +72,45 @@ if (ENTROPY_ENABLED) {
 
 
 
-var packet_count = 0;
 
 
 
 
 
-function save_state() {
-    console.log('saving state');
-    cache.save();
-}
+
 
 
 if (process.getuid() != 0) {
-    console.log('pcap probably needs root');
-    process.exit(1);
+    console.error('PCAP probably needs root');
+    console.error('Will setuid/gid to owner of .js after pcap session initialized.');
 }
 
-console.log('clear your DNS cache after start. sudo killall -HUP mDNSResponder');
+//console.log('clear your DNS cache after start. sudo killall -HUP mDNSResponder');
 if (process.argv.length < 3) {
-    util.error("Example use: ");
-    util.error('  sudo node sniffer.js "" "tcp port 80"');
-    util.error('  sudo node sniffer.js eth1 ""');
-    util.error('  sudo node sniffer.js lo0 "ip proto \\tcp and tcp port 80"');
-    util.error('  sudo node sniffer.js en0 "not host 192.168.1.2 and not host 192.168.1.3 and not host 192.168.1.4 and not host 192.168.1.5 and not host 192.168.1.6 and not host 192.168.1.7 and not host 192.168.1.8 and not host 192.168.1.9"');
+    console.error("\nExample use: ");
+    console.error('  sudo node sniffer.js "" "tcp port 80"');
+    console.error('  sudo node sniffer.js eth1 ""');
+    console.error('  sudo node sniffer.js lo0 "ip proto \\tcp and tcp port 80"');
+    console.error('  sudo node sniffer.js en0 "not net 192.168.1.0/27 and not host 192.168.1.32 and not host 192.168.1.33"');
     process.exit(1);
 }
 
 // Setup PCAP interface now with root permissions and then downgrade to low priv
 pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
 console.log(pcap.lib_version);
-console.log('change process uid/gid to \"'+__filename+'\" owner')
-require('fs').stat(__filename, function(err,s) { process.setgid(s.gid); process.setuid(s.uid);});
+require('fs').stat(__filename, function(err,s) {
+    console.log('change process uid/gid to \"'+__filename+'\" owner: '+s.uid+'/'+s.gid);
+    process.setgid(s.gid);
+    process.setuid(s.uid);});
 
+
+cache = require('./sniffer_cache.js'); //oui,geo,dns,etc caches
+
+
+function save_state() {
+    console.log('saving state');
+    cache.save();
+}
 
 process.on( 'SIGINT', function() {
     console.log( "\nGracefully shutting down from SIGINT (Ctrl-C)" );
@@ -140,6 +144,17 @@ stdin.on( 'data', function( key ){
 });
 
 
+
+server.listen(8080);
+console.log("Sniffer.js client listening on http 8080");
+
+app.get('/', function (req, res) {
+    res.sendFile(__dirname + '/client/index.html');
+});
+app.use('/client', express.static(__dirname + '/client'));
+
+
+
 function dumpError(err) {
     if (typeof err === 'object') {
         if (err.message) {
@@ -155,11 +170,6 @@ function dumpError(err) {
     }
 }
 
-
-app.get('/', function (req, res) {
-    res.sendFile(__dirname + '/client/index.html');
-});
-app.use('/client', express.static(__dirname + '/client'));
 
 
 
@@ -571,6 +581,7 @@ var print_packet = function(dat) {
 }
 
 
+var packet_count = 0;
 
 
 io.sockets.on('connection', function (socket) {
