@@ -2,76 +2,56 @@
 // is no longer maintained. Mainly I needed to control the sqlite3 dependency
 // more directly when using sniffer.js within node-webkit.
 
+// Currently just reading in file. For Sqlite revert version of this file in:
+// https://github.com/cyphunk/snifferjs/commit/cae731e0ea2a578f7437dd475b68fe1e5533bc63
+// memory profiling shows that initially file->array method creates large
+// overhead until garbage collect:
+//   { rss:  81932288, heapTotal: 56496224, heapUsed: 28114096 }
+//   then later:
+//   { rss:  53932032, heapTotal: 27606624, heapUsed: 23904760 }
+// old sqlite version:
+//   { rss:  44187648, heapTotal: 20811872, heapUsed: 14601848 }
+//   after db created first time:
+//   { rss: 196759552, heapTotal: 86843744, heapUsed: 61633488 }
+//   then later, 10 minutes or so:
+//   { rss: 146825216, heapTotal: 37327456, heapUsed: 17600248 }
+//   on second load it is smaller:
+//   { rss:  58720256, heapTotal: 33183072, heapUsed: 14307504 }
+
+
 var fs          = require('fs');
 var http        = require('http');
 var readline    = require('readline');
-var sqlite3     = require('sqlite3').verbose();
 
 var OUI_URL = 'http://standards-oui.ieee.org/oui/oui.txt';
 //var OUI_URL = 'http://localhost:8000/testoui10k.txt';
 //var OUI_URL = 'http://localhost:8000/testoui.txt';
 var OUI_TXT = __dirname + '/oui.txt';
-var OUI_DB  = __dirname + '/oui.db';
 var FETCH_EVERY_N_DAYS = 30; // fetch oui.txt
 
 var debug = true;
 
-exports.start = function(cb) {
-  fs.exists(OUI_DB, function(exists) {
-    if (!exists)
-        return create(cb);
+var ouiitems = {};
 
-    exports.db = new sqlite3.Database(OUI_DB);
+exports.start = function(cb) {
 
     fs.stat(OUI_TXT, function(err, st1) {
       // on error or txt file older than 30 days: fetch (will call parse on finish)
       if ((!!err) || (st1.mtime.getTime() <= (new Date().getTime() - (FETCH_EVERY_N_DAYS * 86400 * 1000))))
         return fetch(cb);
 
-
-      fs.stat(OUI_DB, function(err, st2) {
-        // on error or txt file is newer than db
-        if ((!!err) || (st1.mtime.getTime() >= st2.mtime.getTime()))
-            return parse(cb);
-
-        // if here: txt file isnt old and db file isn't new. So just load:
-        //if (exports.db) exports.db.close();
-        //exports.db = new sqlite3.Database(OUI_DB);
-        cb(null, null);
-      });
+      return parse(cb);
     });
-  });
 };
 
 exports.lookup = function(oui, cb) {
   var h6 = oui.split('-').join('').split(':').join('').toUpperCase();
 
   if (h6.length != 6) return cb(new Error('not an OUI'), null);
-  if (!exports.db) return cb(new Error('database not ready'), null);
 
-  exports.db.get('SELECT * FROM oui WHERE h6=$h6 LIMIT 1', { $h6: h6 }, function(err, row) {
-    cb(err ? err : null, (!!row) ? row.name : null);
-});
+    cb(null, ouiitems[h6]);
 };
 
-
-var create = function(cb) {
-  debug && cb(null, "create new db");
-  exports.db =  new sqlite3.Database(OUI_DB);
-
-  exports.db.run('CREATE TABLE IF NOT EXISTS oui(id INTEGER PRIMARY KEY ASC, h6 TEXT, name TEXT)', function(err) {
-    if (!!err)
-        console.log(err);
-
-    fs.stat(OUI_TXT, function(err, st1) {
-      // on error or txt file older than 30 days: fetch (will call parse on finish)
-      if ((!!err) || (st1.mtime.getTime() < (new Date().getTime() - (FETCH_EVERY_N_DAYS * 86400 * 1000))))
-        return fetch(cb);
-
-      parse(cb);
-    });
-  });
-};
 
 var fetch = function(cb) {
     // handle cases where ieee site offline or network unavailble by loading to tmp
@@ -88,10 +68,12 @@ var fetch = function(cb) {
 
     var request = http.get(OUI_URL, function(response) {
               response.setEncoding('utf8');
-              response.pipe(f) });
+              response.pipe(f)
+    });
     request.on('error', function(err) {
         cb(err, null);
-        fs.unlink(OUI_TXT+'.tmp') });
+        fs.unlink(OUI_TXT+'.tmp')
+    });
     request.end();
 
 };
@@ -108,12 +90,9 @@ var fetch = function(cb) {
 var parse = function(cb) {
   var info = { count: 0, errors: 0 };
 
-  if (!exports.db) debug && cb({message:"no db"}, null);
-
   debug && cb(null, "begin parsing "+OUI_TXT);
   var rl = readline .createInterface({ input: fs.createReadStream(OUI_TXT)});
 
-  items = [];
   rl.on('line', function(line) {
       var h6, id, name;
 
@@ -127,26 +106,12 @@ var parse = function(cb) {
 
       if ((!!h6) && (h6.length === 6) && (!!name) && (name.length > 0)) {
         id = parseInt(h6.trimLeft('0'), 16);
-        items.push( {'id': id, 'h6':h6,'name':name} );
-        // this method:
-
+        ouiitems[id] = name;
       }
   });
 
   rl.on('close', function(){
       debug && cb(null, "finished parsing");
-      debug && cb(null, "begin adding "+items.length+" items to db "+OUI_DB);
-
-      exports.db.run('BEGIN TRANSACTION');
-      items.forEach(function(e, i) {
-              exports.db.run('INSERT INTO oui(id, h6, name) VALUES($id, $h6, $name)', { $id: e.id, $h6: e.h6, $name: e.name }, function(err) {
-                if (i == items.length-1) debug && cb(null, "finished adding to db: count "+info.count+", errors "+info.errors);
-                if (!!err) { info.errors++; cb(err, null); }
-                else { info.count++;  debug && info.count%1000==0 && cb(null, info.count+" loaded"); }
-              });
-      });
-      exports.db.run('END TRANSACTION');
-
   });
 };
 
