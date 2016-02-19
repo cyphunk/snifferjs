@@ -17,18 +17,44 @@ derivitive your work is based on.
 by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
 -->
 
+
+<!-- <script src="client/js/jquery-1.11.1.min.js"></script> -->
 <script src="/socket.io/socket.io.js"></script>
 <!-- we need jquery for entropy charts. their standalone framework fails.
      otherwise i wouldnt use this shit -->
-<script src="client/js/jquery-1.11.1.min.js"></script>
-<script src="client/js/highcharts.js"></script>
-<script src="client/js/map.js"></script>
-<script src="client/js/highmaps.js"></script>
-<script src="client/js/data.js"></script>
-<script src="client/js/exporting.js"></script>
+<script src="client/js/highcharts.src.js"></script>
+<script src="client/js/map.src.js"></script>
+<!-- <script src="client/js/highmaps.js"></script> -->
+<script src="client/js/data.src.js"></script>
+<script src="client/js/exporting.src.js"></script>
 <script src="client/js/world.js"></script>
 <!-- 'ma is not a function' error is expected, i guess -->
 
+<script>
+// for electron
+if('require' in window) {
+    console.log(__dirname);
+    console.log(__filename);
+    console.log("versions", process.versions);
+    try {
+        // running electron installed with npm:
+        window.Highcharts = require("../../../../../../../client/js/highcharts.js");
+        require('../../../../../../../client/js/map.js')(window.Highcharts);
+        require('../../../../../../../client/js/data.js')(window.Highcharts);
+        require('../../../../../../../client/js/exporting.js')(window.Highcharts);
+        require('../../../../../../../client/js/world.js');
+    }
+    catch (e) {
+        // running electron from packaged executable
+        window.Highcharts = require("../../../app/client/js/highcharts.js");
+        require('../../../app/client/js/map.js')(window.Highcharts);
+        require('../../../app/client/js/data.js')(window.Highcharts);
+        require('../../../app/client/js/exporting.js')(window.Highcharts);
+        require('../../../app/client/js/world.js');
+
+    }
+}
+</script>
 <script>
 
     // localStorage.debug='*';
@@ -141,15 +167,6 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
     // UI FEATURES
     //
 
-    function toggle_entropy() {
-        var entropybox = document.getElementById('entropybox');
-        var entropygraph = document.getElementById('container');
-        if (entropybox.checked)
-            entropygraph.style.display='block';
-        else
-            entropygraph.style.display='none';
-        entropygraph.style.width   = (window.innerWidth-100)+'px';
-    }
 
 
     //
@@ -202,7 +219,9 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
         if (document.getElementById('shownames').checked)
             show_hostnames = true;
 
+        // load_entropy_graph();
     }
+
     function toggle_names() {
         var checkbox = document.getElementById('shownames');
         var elems = document.querySelectorAll(".name");
@@ -407,148 +426,151 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
     // it on every display:
 
 
-    var load_map, toggle_map;
-    $(function () {
+    var toggle_map = function() {
+        var mapbox = document.getElementById('mapbox');
+        var mapgraph = document.getElementById('mapcontainer');
+        if (mapbox.checked)
+            mapgraph.style.display='block';
+        else
+            mapgraph.style.display='none';
+        mapgraph.style.width   = (window.innerWidth-100)+'px';
+        mapgraph.style.height   = (window.innerHeight-60)+'px';
+        load_map();
 
-        $(document).ready(function() {
-            Highcharts.setOptions({
-                global: {
-                    useUTC: false
-                }
-            });
-
-            //
-            // Entropy
-            //
-            var chart;
-            $('#container').highcharts({
-                chart: {
-                    // zoomType: 'x',
-                    type: 'area',//'scatter',//'spline',
-                    animation: Highcharts.svg, // don't animate in old IE
-                    marginRight: 10,
-                    events: {
-                        load: function() {
-
-                            // set up the updating of the chart each second
-                            var series = this.series[0];
-                            // setInterval(function() {
-                            //     var x = (new Date()).getTime(), // current time
-                            //         y = Math.random();
-                            //     series.addPoint([x, y], true, true);
-                            // }, 10000);
-                        }
+    }
+    var map_chart;
+    var load_map = function() {
+        var data = geo_cache.get_data();
+        var max_density = 2;
+        for (i in data)
+            if (data[i]['value'] > max_density)
+                max_density = data[i]['value'];
+        // $('#mapcontainer').highcharts('Map', {
+        map_chart = new Highcharts.Map({
+            chart: {
+                renderTo: 'mapcontainer'
+            },
+            title : {
+                text : ''
+            },
+            mapNavigation: {
+                enabled: true,
+                enableDoubleClickZoomTo: true
+            },
+            colorAxis: {
+                min: 1,
+                max: max_density,
+                type: 'logarithmic'
+            },
+            series : [{
+                data : data,
+                mapData: Highcharts.maps['custom/world'],
+                joinBy: ['iso-a2', 'code'],
+                name: 'Sessions',
+                states: {
+                    hover: {
+                        color: '#BADA55'
                     }
                 },
-                title: {
-                    text: 'Entropy'
-                },
-                xAxis: {
-                    // type: 'datetime',
-                    tickPixelInterval: 1 * 3600// * 1000 //150
-                },
-                yAxis: {
-                    max: 8,
-                    min: 0,
-                    title: {
-                        text: 'per byte'
-                    },
-                    plotLines: [{
-                        value: 0,
-                        width: 1,
-                        color: '#808080'
-                    }]
-                },
-                // tooltip: {
-                //     formatter: function() {
-                //             return '<b>'+ this.series.name +'</b><br/>'+
-                //             Highcharts.dateFormat('%Y-%m-%d %H:%M:%S', this.x) +'<br/>'+
-                //             Highcharts.numberFormat(this.y, 2);
-                //     }
-                // },
-                legend: {
-                    enabled: false
-                },
-                exporting: {
-                    enabled: false
-                },
-                series: [{
-                    name: 'Entropy',
-                    // pre init dat
-                    data: (function() {
-                        // generate an array of random data
-                        var data = [],
-                            time = (new Date()).getTime(),
-                            i;
-
-                        for (i = -900; i <= 0; i++) {
-                            // thus far this is the only way ive found to set the
-                            // width of the graph. will show abs(i) data points
-                            data.push({
-                                x: i,//time + i * 10000,
-                                y: 0//Math.random()*7
-                            });
-                        }
-                        return data;
-                    })()
-                }]
-            });
-
-
-
-            load_map = function() {
-                var data = geo_cache.get_data();
-                var max_density = 2;
-                for (i in data)
-                    if (data[i]['value'] > max_density)
-                        max_density = data[i]['value'];
-                $('#mapcontainer').highcharts('Map', {
-
-                    title : {
-                        text : ''
-                    },
-
-                    mapNavigation: {
-                        enabled: true,
-                        enableDoubleClickZoomTo: true
-                    },
-
-                    colorAxis: {
-                        min: 1,
-                        max: max_density,
-                        type: 'logarithmic'
-                    },
-
-                    series : [{
-                        data : data,
-                        mapData: Highcharts.maps['custom/world'],
-                        joinBy: ['iso-a2', 'code'],
-                        name: 'Sessions',
-                        states: {
-                            hover: {
-                                color: '#BADA55'
-                            }
-                        },
-                        tooltip: {
-                            valueSuffix: '/sessions'
-                        }
-                    }]
-                });
-            }
-            toggle_map = function() {
-                var mapbox = document.getElementById('mapbox');
-                var mapgraph = document.getElementById('mapcontainer');
-                if (mapbox.checked)
-                    mapgraph.style.display='block';
-                else
-                    mapgraph.style.display='none';
-                mapgraph.style.width   = (window.innerWidth-100)+'px';
-                mapgraph.style.height   = (window.innerHeight-60)+'px';
-                load_map();
-
-            }
+                tooltip: {
+                    valueSuffix: '/sessions'
+                }
+            }]
         });
-    });
+    }
+    function toggle_entropy() {
+        var entropybox = document.getElementById('entropybox');
+        var entropygraph = document.getElementById('container');
+        if (entropybox.checked)
+            entropygraph.style.display='block';
+        else
+            entropygraph.style.display='none';
+        entropygraph.style.width   = (window.innerWidth-100)+'px';
+    }
+    var entropy_graph;
+    var load_entropy_graph = function () {
+        // $('#container').highcharts({
+        entropy_graph = new Highcharts.Chart({
+            chart: {
+                renderTo: 'container',
+                // zoomType: 'x',
+                type: 'area',//'scatter',//'spline',
+                animation: Highcharts.svg, // don't animate in old IE
+                marginRight: 10,
+                events: {
+                    load: function() {
+                        // set up the updating of the chart each second
+                        var series = this.series[0];
+                        // setInterval(function() {
+                        //     var x = (new Date()).getTime(), // current time
+                        //         y = Math.random();
+                        //     series.addPoint([x, y], true, true);
+                        // }, 10000);
+                    }
+                }
+            },
+            title: {
+                text: 'Entropy'
+            },
+            xAxis: {
+                // type: 'datetime',
+                tickPixelInterval: 1 * 3600// * 1000 //150
+            },
+            yAxis: {
+                max: 8,
+                min: 0,
+                title: {
+                    text: 'per byte'
+                },
+                plotLines: [{
+                    value: 0,
+                    width: 1,
+                    color: '#808080'
+                }]
+            },
+            // tooltip: {
+            //     formatter: function() {
+            //             return '<b>'+ this.series.name +'</b><br/>'+
+            //             Highcharts.dateFormat('%Y-%m-%d %H:%M:%S', this.x) +'<br/>'+
+            //             Highcharts.numberFormat(this.y, 2);
+            //     }
+            // },
+            legend: {
+                enabled: false
+            },
+            exporting: {
+                enabled: false
+            },
+            series: [{
+                name: 'Entropy',
+                // pre init dat
+                data: (function() {
+                    // generate an array of random data
+                    var data = [],
+                        time = (new Date()).getTime(),
+                        i;
+
+                    for (i = -900; i <= 0; i++) {
+                        // thus far this is the only way ive found to set the
+                        // width of the graph. will show abs(i) data points
+                        data.push({
+                            x: i,//time + i * 10000,
+                            y: 0//Math.random()*7
+                        });
+                    }
+                    return data;
+                })()
+            }]
+        });
+    }
+
+
+
+    // Highcharts.setOptions({
+    //     global: {
+    //         useUTC: false
+    //     }
+    // });
 </script>
 <style>
 body {
