@@ -4,7 +4,6 @@
   "description": "Network monitor with browser based UI",
   "author": "Nathan Fain <cyphunk@deadhacker.com>",
   "homepage": "https://git.xiala.net/cyphunk/snifferjs",
-  "engines": { "npm" : "~4.2.4" },
   "os": [ "darwin", "linux" ],
   "bin": "./sniffer.js",
   "dependencies": {
@@ -16,7 +15,7 @@
     "express": "4.12.3",
     "exec": "0.2.0",
     "maxmind": "0.5.5",
-    "socket.io": "1.0.6",
+    "socket.io": "1.0.6"
   },
   "private": true
 }
