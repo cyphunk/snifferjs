@@ -17,9 +17,16 @@ var fs      = require('fs');
 var LOAD_FROM_FILE = true; // Set to true to load caches from disk
 
 
-//http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz
 // var MAXMIND_FILE = '/usr/local/var/GeoIP/GeoIPCountry.dat';
 var MAXMIND_FILE = __dirname+'/GeoIP.dat';
+
+fs.stat(MAXMIND_FILE, function(err,state) {
+    if (err != null) {
+        console.error("Missing GeoIP.dat file");
+        console.error("Download and unzip from http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz");
+    }
+});
+
 
 var oui = (function () {
     var cache = {},
