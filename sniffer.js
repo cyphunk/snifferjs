@@ -1,3 +1,5 @@
+'use strict';
+
 /*
 License: Non-White-Heterosexual-Male
 
@@ -80,10 +82,10 @@ if (ENTROPY_ENABLED) {
 
 
 
-if (process.getuid() != 0) {
-    console.error('PCAP probably needs root');
-    console.error('Will setuid/gid to owner of .js after pcap session initialized.');
-}
+// if (process.getuid() != 0) {
+//     console.error('PCAP probably needs root');
+//     console.error('Will setuid/gid to owner of .js after pcap session initialized.');
+// }
 
 //console.log('clear your DNS cache after start. sudo killall -HUP mDNSResponder');
 if (process.argv.length < 3) {
@@ -95,17 +97,57 @@ if (process.argv.length < 3) {
     process.exit(1);
 }
 
-// Setup PCAP interface now with root permissions and then downgrade to low priv
-pcap_session = pcap.createSession(process.argv[2], process.argv[3]);
-console.log(pcap.lib_version);
-require('fs').stat(__filename, function(err,s) {
-    console.log('change process uid/gid to \"'+__filename+'\" owner: '+s.uid+'/'+s.gid);
-    process.setgid(s.gid);
-    process.setuid(s.uid);});
 
+var netinterface = process.argv[2]
+var filter = process.argv[3];
+
+var gatewayip;
+if (/^darwin/.test(process.platform)) {
+    gatewayip = require('netroute').getGateway(netinterface);
+}
+else {
+    if (process.argv.length <= 4) {
+        console.error("On linux please supply gateway address as argument");
+        process.exit(1);
+    }
+    else {
+        gatewayip = process.argv[4];
+    }
+}
+
+
+
+
+// var netinterface = "eth0";
+// var netinterface = "wlan0";
+// var filter = "ip";
+// var gatewayip = "192.168.44.1"
+
+
+// Setup PCAP netinterface now with root permissions and then downgrade to low priv
+//console.log(pcap.lib_version);
+try {
+    pcap_session = pcap.createSession(netinterface, filter);
+} catch (e) {
+    console.error(e);
+    console.log("\nConsider running snifferjs as root or give yourself permission to monitor network interface:");
+    if (process.platform == 'linux')
+        console.log("\nsudo setcap cap_net_raw,cap_net_admin=eip "+process.argv[0]+"\n");
+    else if (process.platform == 'darwin')
+        console.log("\nuse ChmodBPF to give permissions to "+process.argv[0]+"\n");
+    save_state();
+    setTimeout(function(){process.exit()}, PROCESS_EXIT_WAIT);
+}
+
+if (process.getuid() == 0) {
+    require('fs').stat(__filename, function(err,s) {
+        console.log('change process uid/gid to \"'+__filename+'\" owner: '+s.uid+'/'+s.gid);
+        process.setgid(s.gid);
+        process.setuid(s.uid);
+    });
+}
 
 cache = require('./sniffer_cache.js'); //oui,geo,dns,etc caches
-
 
 function save_state() {
     console.log('saving state');
@@ -115,8 +157,7 @@ function save_state() {
 process.on( 'SIGINT', function() {
     console.log( "\nGracefully shutting down from SIGINT (Ctrl-C)" );
     save_state();
-    process.exit();
-
+    setTimeout(function(){process.exit()}, PROCESS_EXIT_WAIT);
 })
 
 var stdin = process.openStdin();
@@ -142,7 +183,6 @@ stdin.on( 'data', function( key ){
   // write the key to stdout all normal like
   process.stdout.write( key );
 });
-
 
 
 server.listen(8080);
@@ -184,10 +224,10 @@ var http_request_content = function (buf) {
     // from pcap.js TCP_tracker.prototype.detect_http_request
     var str = buf.toString('utf8', 0, buf.length);
     var content = "";
-    match_req = str.match(/(GET|POST)\s+[^\s\r\n]+/i)
+    var match_req = str.match(/(GET|POST)\s+[^\s\r\n]+/i)
     if (match_req) {
         content+=match_req[0].substring(4,HTTP_LENGTH_MAX+4).trimLeft();
-        match_host = str.match(/(Host:)\s+[^\s\r\n]+/i);
+        var match_host = str.match(/(Host:)\s+[^\s\r\n]+/i);
         if (match_host)
             content=match_host[0].substring(6,HTTP_LENGTH_MAX+4)+content;
     }
@@ -245,21 +285,6 @@ pcap.findalldevs().forEach(function (dev) {
     }
 });
 
-var gatewayip;
-if (/^darwin/.test(process.platform)) {
-    gatewayip = require('netroute').getGateway(process.argv[2]);
-}
-else {
-    if (process.argv.length <= 4) {
-        console.error("On linux please supply gateway address as argument");
-        process.exit(1);
-    }
-    else {
-        gatewayip = process.argv[4];
-    }
-}
-
-console.log("default gw " + gatewayip +"\n");
 
 
 // Routinely check for dropped packets

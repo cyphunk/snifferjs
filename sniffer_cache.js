@@ -1,3 +1,5 @@
+'use strict';
+
 /*
 Written by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
 */
@@ -17,18 +19,20 @@ var LOAD_FROM_FILE = true; // Set to true to load caches from disk
 
 //http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz
 // var MAXMIND_FILE = '/usr/local/var/GeoIP/GeoIPCountry.dat';
-var MAXMIND_FILE = 'GeoIP.dat';
+var MAXMIND_FILE = __dirname+'/GeoIP.dat';
 
 var oui = (function () {
     var cache = {},
         requests = {};
 
-    var file = './data/save_oui.json';
+    var file = __dirname+'/data/save_oui.json';
     if (LOAD_FROM_FILE) {
         fs.exists(file, function(exists) {
             if (exists) {
-                console.log('loaded '+file);
-                cache = require(file);
+                console.log('loading '+file);
+                // catch when file is empty
+                try { cache = require(file); }
+                catch (e) { console.error(e); }
             }
         });
     }
@@ -89,12 +93,14 @@ var geo = (function () {
     var cache = {},
         requests = {};
 
-    var file = './data/save_geo.json';
+    var file = __dirname+'/data/save_geo.json';
     if (LOAD_FROM_FILE) {
         fs.exists(file, function(exists) {
             if (exists) {
-                console.log('loaded '+file);
-                cache = require(file);
+                console.log('loading '+file);
+                // catch when file is empty
+                try { cache = require(file); }
+                catch (e) { console.error(e); }
             }
         });
     }
@@ -152,12 +158,14 @@ var mdns = (function () {
     var noserverre = new RegExp('no servers could be reached');
 
 
-    var file = './data/save_mdns.json';
+    var file = __dirname+'/data/save_mdns.json';
     if (LOAD_FROM_FILE) {
         fs.exists(file, function(exists) {
             if (exists) {
-                console.log('loaded '+file);
-                cache = require(file);
+                console.log('loading '+file);
+                // catch when file is empty
+                try { cache = require(file); }
+                catch (e) { console.error(e); }
             }
         });
     }
@@ -237,12 +245,14 @@ var dns = (function () {
     var retry = [];
     var RETRY_INTERVAL = 10000;
 
-    var file = './data/save_dns.json';
+    var file = __dirname+'/data/save_dns.json';
     if (LOAD_FROM_FILE) {
         fs.exists(file, function(exists) {
             if (exists) {
-                console.log('loaded '+file);
-                cache = require(file);
+                console.log('loading '+file);
+                // catch when file is empty
+                try { cache = require(file); }
+                catch (e) { console.error(e); }
             }
         });
     }
