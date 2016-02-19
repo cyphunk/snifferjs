@@ -135,7 +135,6 @@ try {
         console.log("\nsudo setcap cap_net_raw,cap_net_admin=eip "+process.argv[0]+"\n");
     else if (process.platform == 'darwin')
         console.log("\nuse ChmodBPF to give permissions to "+process.argv[0]+"\n");
-    save_state();
     setTimeout(function(){process.exit()}, PROCESS_EXIT_WAIT);
 }
 
