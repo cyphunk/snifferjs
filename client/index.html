@@ -17,12 +17,10 @@ derivitive your work is based on.
 by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
 -->
 
-
-<!-- <script src="client/js/jquery-1.11.1.min.js"></script> -->
 <script src="/socket.io/socket.io.js"></script>
 <!-- we need jquery for entropy charts. their standalone framework fails.
      otherwise i wouldnt use this shit -->
-<script src="client/js/highcharts.src.js"></script>
+<script src="/client/js/highcharts.src.js"></script>
 <script src="client/js/map.src.js"></script>
 <script src="client/js/data.src.js"></script>
 <script src="client/js/exporting.src.js"></script>
@@ -30,29 +28,46 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
 <!-- 'ma is not a function' error is expected, i guess -->
 
 <script>
-// for electron
-// if('require' in window) {
-//     console.log(__dirname);
-//     console.log(__filename);
-//     console.log("versions", process.versions);
-//     try {
-//         // running electron installed with npm:
-//         window.Highcharts = require("../../../../../../../client/js/highcharts.js");
-//         require('../../../../../../../client/js/map.js')(window.Highcharts);
-//         require('../../../../../../../client/js/data.js')(window.Highcharts);
-//         require('../../../../../../../client/js/exporting.js')(window.Highcharts);
-//         require('../../../../../../../client/js/world.js');
-//     }
-//     catch (e) {
-//         // running electron from packaged executable
-//         window.Highcharts = require("../../../app/client/js/highcharts.js");
-//         require('../../../app/client/js/map.js')(window.Highcharts);
-//         require('../../../app/client/js/data.js')(window.Highcharts);
-//         require('../../../app/client/js/exporting.js')(window.Highcharts);
-//         require('../../../app/client/js/world.js');
-//
-//     }
-// }
+    console.log(__dirname);
+    console.log(__filename);
+    console.log("versions", process.versions);
+    // And because highcharts is completely not ready for nodewebkit or electron
+    // This beauty:
+    if('require' in window) {
+        if ( !('Highcharts' in window) ) {
+            console.log("highcharts load issue");
+            var prefix = "";
+            var requireFailed = true;
+            try {
+                prefix = "../../../app/"; // inside distributed electron app
+                window.Highcharts = require(prefix+"client/js/highcharts.src.js");
+                requireFailed = false;
+            }
+            catch(e) {
+                try {
+                    prefix = "../../../../../../../"; // inside npm installed electron
+                    window.Highcharts = require(prefix+"client/js/highcharts.src.js");
+                    requireFailed = false;
+                }
+                catch (e) {
+                    console.log("Loading issue. no charts for you!",e);
+                    requireFailed = true;
+                }
+            }
+
+            if (requireFailed == false) {
+                try {
+                    require(prefix+'client/js/map.src.js')(window.Highcharts);
+                    require(prefix+'client/js/data.src.js')(window.Highcharts);
+                    require(prefix+'client/js/exporting.src.js')(window.Highcharts);
+                    require(prefix+'client/js/world.js');
+                }
+                catch (e) {
+                    console.log("Loading issue with sub modules")
+                }
+            }
+        }
+    }
 </script>
 <script>
 
