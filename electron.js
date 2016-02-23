@@ -32,6 +32,7 @@ function showMain () {
         frame: true, //no removes all borders
         });
     mainWindow.setMenu(null);
+    // mainWindow.webContents.openDevTools();
 
     // and load the index.html of the app.
     //mainWindow.loadURL('file://' + __dirname + '/index.html');
@@ -41,9 +42,6 @@ function showMain () {
         settingsWindow.close();
 
     }, 2000);
-
-
-    // mainWindow.webContents.openDevTools();
 
     mainWindow.on('closed', function() {
       mainWindow = null;

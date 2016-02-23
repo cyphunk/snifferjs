@@ -14,9 +14,13 @@ npm install electron-prebuilt@0.36.7
 npm install -g electron-packager
 
 electron-packager . snifferjs \
-  --out ./app_releases --ignore="(app_releases|node_modules/.bin|node_modules/electron-rebuild|node_modules/electron-prebuilt)" \
+  --out ./app_releases --ignore="(app_releases|node_modules/.bin|node_modules/electron-rebuild|node_modules/electron-prebuilt|client/js/tmp|data/save_*)" \
   --platform=all --arch=x64 --version=0.36.7 \
   --overwrite --prune
+
+Test:
+
+sudo ./app_releases/snifferjs-linux-x64/snifferjs
 
 cd app_releases
 tar -cf - snifferjs-linux-x64 | gzip -9 > snifferjs-linux-x64.tar.gz

@@ -24,7 +24,6 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
      otherwise i wouldnt use this shit -->
 <script src="client/js/highcharts.src.js"></script>
 <script src="client/js/map.src.js"></script>
-<!-- <script src="client/js/highmaps.js"></script> -->
 <script src="client/js/data.src.js"></script>
 <script src="client/js/exporting.src.js"></script>
 <script src="client/js/world.js"></script>
@@ -32,28 +31,28 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
 
 <script>
 // for electron
-if('require' in window) {
-    console.log(__dirname);
-    console.log(__filename);
-    console.log("versions", process.versions);
-    try {
-        // running electron installed with npm:
-        window.Highcharts = require("../../../../../../../client/js/highcharts.js");
-        require('../../../../../../../client/js/map.js')(window.Highcharts);
-        require('../../../../../../../client/js/data.js')(window.Highcharts);
-        require('../../../../../../../client/js/exporting.js')(window.Highcharts);
-        require('../../../../../../../client/js/world.js');
-    }
-    catch (e) {
-        // running electron from packaged executable
-        window.Highcharts = require("../../../app/client/js/highcharts.js");
-        require('../../../app/client/js/map.js')(window.Highcharts);
-        require('../../../app/client/js/data.js')(window.Highcharts);
-        require('../../../app/client/js/exporting.js')(window.Highcharts);
-        require('../../../app/client/js/world.js');
-
-    }
-}
+// if('require' in window) {
+//     console.log(__dirname);
+//     console.log(__filename);
+//     console.log("versions", process.versions);
+//     try {
+//         // running electron installed with npm:
+//         window.Highcharts = require("../../../../../../../client/js/highcharts.js");
+//         require('../../../../../../../client/js/map.js')(window.Highcharts);
+//         require('../../../../../../../client/js/data.js')(window.Highcharts);
+//         require('../../../../../../../client/js/exporting.js')(window.Highcharts);
+//         require('../../../../../../../client/js/world.js');
+//     }
+//     catch (e) {
+//         // running electron from packaged executable
+//         window.Highcharts = require("../../../app/client/js/highcharts.js");
+//         require('../../../app/client/js/map.js')(window.Highcharts);
+//         require('../../../app/client/js/data.js')(window.Highcharts);
+//         require('../../../app/client/js/exporting.js')(window.Highcharts);
+//         require('../../../app/client/js/world.js');
+//
+//     }
+// }
 </script>
 <script>
 
