@@ -19,7 +19,7 @@ function showSettings() {
     settingsWindow = new BrowserWindow({
         width: 800, height: 600, frame: false, titleBarStyle: 'hidden'
         });
-    settingsWindow.loadURL('file://' + __dirname + '/electron_setup.html');
+    settingsWindow.loadURL('file://' + __dirname + '/electron.html');
     // settingsWindow.webContents.openDevTools();
 }
 
