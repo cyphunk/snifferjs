@@ -23,7 +23,7 @@ Test:
 sudo ~/git/snifferjs/app_releases/snifferjs-linux-x64/snifferjs
 sudo ~/git/snifferjs/app_releases/snifferjs-darwin-x64/snifferjs.app/Contents/MacOS/Electron
 
-cd app_releases
+cd ~/git/snifferjs/app_releases
 tar -cf - snifferjs-linux-x64 | gzip -9 > snifferjs-linux-x64.tar.gz
 rm snifferjs-darwin-x64.zip; 7z a -tzip snifferjs-darwin-x64.zip snifferjs-darwin-x64
 rm snifferjs-win32-x64.zip; 7z a -tzip snifferjs-win32-x64.zip snifferjs-win32-x64
