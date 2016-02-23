@@ -2,25 +2,26 @@ The client application is based on the Electron.js framework. Packages were
 created as follows:
 
 ```
+cd /tmp
 git clone git@github.com:cyphunk/snifferjs.git
 cd snifferjs
 git checkout electronApplication
 npm install
-npm install electron-rebuild
-npm install electron-prebuilt@0.36.7
+npm install electron-rebuild electron-prebuilt@0.36.7
 
 ./node_modules/.bin/electron-rebuild
 
 npm install -g electron-packager
 
 electron-packager . snifferjs \
-  --out ./app_releases --ignore="(app_releases|node_modules/.bin|node_modules/electron-rebuild|node_modules/electron-prebuilt|client/js/tmp|data/save_*)" \
+  --out ~/git/snifferjs/app_releases --ignore="(app_releases|node_modules/.bin|node_modules/electron-rebuild|node_modules/electron-prebuilt|client/js/tmp|data/save_*)" \
+  --overwrite --prune \
   --platform=all --arch=x64 --version=0.36.7 \
-  --overwrite --prune
 
 Test:
 
 sudo ./app_releases/snifferjs-linux-x64/snifferjs
+sudo ./app_releases/snifferjs-darwin-x64/snifferjs.app/Contents/MacOS/Electron
 
 cd app_releases
 tar -cf - snifferjs-linux-x64 | gzip -9 > snifferjs-linux-x64.tar.gz
