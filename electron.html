@@ -92,16 +92,28 @@ ready(function() {
             }
         }
     });
+
+    if (process.platform == 'linux') {
+        document.querySelector('#command').innerHTML = "sudo ./snifferjs-linux-x64/snifferjs";
+    }
+    else if (process.platform == 'darwin') {
+        document.querySelector('#command').innerHTML = "sudo sudo ./snifferjs-darwin-x64/snifferjs.app/Contents/MacOS/Electron";
+    }
 });
 </script>
 <style>
-* { font-size: 18pt; font-family: sans-serif;}
+* { font-size: 16pt; font-family: sans-serif;}
 body { margin: 4% 10% 10% 10% ; background-color: #dee3de;}
-.help {font-size: 0.8em; color: #999;}
+.help, .help a {font-size: 12pt; color: #999;}
+#command { font-size: 12pt; margin: 10px; font-family: monospace;}
 </style>
 </head>
-<body><div class=help>
-    You might need to run Sniffer.js as root or give yourself permissions to packet device</div><br />
+<body>
+<div class=help>
+    You might need to run Sniffer.js as root<br>
+    <div id=command></div>
+    For details and instructions on running run as normal see <a href="https://github.com/cyphunk/snifferjs/releases/tag/snifferjsApp_0.0.1">release notes</a>
+</div><br />
 <select id="interface">
 <option value="" disabled="disable" >Select network interface</option>
 </select><br /><br />
@@ -113,7 +125,7 @@ body { margin: 4% 10% 10% 10% ; background-color: #dee3de;}
     <tr><td colspan=2 class=help>libpcap filter<br />(e.g.  "ip and not host 192.168.1.1")</td></tr>
     <tr><td>Gateway</td><td> <input name="gateway" value="" /></td></tr>
     <tr><td colspan=2 class=help>Default router of interface. Optional.</td></tr>
-</table><br /><br />
+</table><br />
 <button id="save">Go!</button>
 </body>
 </html>

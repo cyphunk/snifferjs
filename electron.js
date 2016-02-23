@@ -74,19 +74,6 @@ app.on('window-all-closed', function() {
 });
 
 
-//var util = require('util');
-// util.log('log message');
-// util.log(util.inspect({'test': 'test'}));
-// console.log(__filename);
-// console.log(__dirname);
-
-
-
-// process.inited = true;
-// var childProcess = snifferjsProc(__dirname+'/sniffer.js', ['wlan0', 'ip', '192.168.100.1']);
-
-
-
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 app.on('ready', function() {
