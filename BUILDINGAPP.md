@@ -20,8 +20,8 @@ electron-packager . snifferjs \
 
 Test:
 
-sudo ./app_releases/snifferjs-linux-x64/snifferjs
-sudo ./app_releases/snifferjs-darwin-x64/snifferjs.app/Contents/MacOS/Electron
+sudo ~/git/snifferjs/app_releases/snifferjs-linux-x64/snifferjs
+sudo ~/git/snifferjs/app_releases/snifferjs-darwin-x64/snifferjs.app/Contents/MacOS/Electron
 
 cd app_releases
 tar -cf - snifferjs-linux-x64 | gzip -9 > snifferjs-linux-x64.tar.gz
