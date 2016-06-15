@@ -15,7 +15,7 @@ var dnser   = require('dns');
 var fs      = require('fs');
 
 var LOAD_FROM_FILE = true; // Set to true to load caches from disk
-
+var DEBUG_MDNS = false; // set to true to see messages for mdns name resolution
 
 // var MAXMIND_FILE = '/usr/local/var/GeoIP/GeoIPCountry.dat';
 var MAXMIND_FILE = __dirname+'/GeoIP.dat';
@@ -49,13 +49,13 @@ var oui = (function () {
             return cache[macoui];
         }
         else {
-            if (! requests[macoui]) {
+            if (ieeeoui.ready && (! requests[macoui]) ) {
                 requests[macoui] = true;
 
                 ieeeoui.lookup(macoui, function(err, name) {
                   if (err) {
                     cache[macoui] = '';
-                    console.log('cache oui:', err);
+                    console.log('cache oui err:', err);
                   }
                   else {
                     cache[macoui] = name;
@@ -73,6 +73,7 @@ var oui = (function () {
         var string = JSON.stringify(cache, null, 4);
         if (string.length <= 3) // empty files cause issues on load via require()
             return
+        if (!fs.existsSync('./data')){ fs.mkdirSync('./data'); }
         fs.writeFile(file, string, function(err) {
             if (err)
                 console.log(file+' '+err);
@@ -140,6 +141,7 @@ var geo = (function () {
         var string = JSON.stringify(cache, null, 4);
         if (string.length <= 3) // empty files cause issues on load via require()
             return
+        if (!fs.existsSync('./data')){ fs.mkdirSync('./data'); }
         fs.writeFile(file, string, function(err) {
             if (err)
                 console.log(file+' '+err);
@@ -185,34 +187,53 @@ var mdns = (function () {
             if (! requests[ip]) {
                 requests[ip] = true;
                 var exec = require('child_process').execFile;
-		// try to netcast
-                exec('dig', ['+noall', '+answer', '+time=1', '-x', ip, '-p','5353', '@224.0.0.251'], function(err, out, code) {
+                // I attempted to use multicast-dns lib but there are various errors. so we do this
+                var flags = ['+short', '+noadflag', '+nocdflag', '+noedns', '+noall', '+answer', '+time=1', '+tries=1', '-b', '10.13.37.1' ];
+
+    // TRY TO NETCAST 5353 ----------------------------------------------------
+    DEBUG_MDNS && console.log('> dig 5353 netcast '+ip);
+                exec('dig', flags.concat(['-x', ip, '-p','5353', '@224.0.0.251']), function(err, out, code) {
                     //if (err instanceof Error)
                     //   throw err;
                     // if you want to run this request continuesly uncomment:
                     //delete requests[ip];
                     // if (out == ";; connection timed out; no servers could be reached\n")
-                    if (noserverre.test(out))
-                        return null;
-
-                    var name = out.replace(/[\r\n]/g, '').split(/[\t\s]/).slice(-1)[0]
-                    if (name) {
-                        // console.log(name);
-                        cache[ip] = name;
+                    if (out && !noserverre.test(out) && out.length > 0) {
+                        cache[ip] = out.replace("\n", '').replace(/\.$/,'');
+                    }
+                    else {
+    // TRY TO HOST 5353 -------------------------------------------------------
+    DEBUG_MDNS && console.log('>> dig 5353 netcast '+ip);
+                        exec('dig',flags.concat(['-x', ip, '-p','5353', '@'+ip]), function(err, out, code) {
+                            if (out && !noserverre.test(out) && out.length > 0) {
+                                cache[ip] = out.replace("\n", '').replace(/\.$/,'');
+                            }
+                            else {
+    // TRY TO HOST 53 ---------------------------------------------------------
+    DEBUG_MDNS && console.log('>>> dig 53 host '+ip);
+                                exec('dig',flags.concat(['-x', ip, '-p','53', '@'+ip]), function(err, out, code) {
+                                    if (out && !noserverre.test(out) && out.length > 0) {
+                                        cache[ip] = out.replace("\n", '').replace(/\.$/,'');
+                                    }
+                                    else {
+    // TRY TO NETCAST 53 ------------------------------------------------------
+    DEBUG_MDNS && console.log('>>>> dig 53 netcast '+ip);
+                                        exec('dig',flags.concat(['-x', ip, '-p','53', '@224.0.0.251']), function(err, out, code) {
+                                            if (out && !noserverre.test(out) && out.length > 0) {
+                                                cache[ip] = out.replace("\n", '').replace(/\.$/,'');
+                                            }
+                                            else {
+    DEBUG_MDNS && console.log('>>>> dig 53 netcast: '+ip+" FAIL.\n"+out);
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        });
                     }
                     //process.stderr.write(err);
                     //process.exit(code);
             	});
-		// try to host
-                exec('dig',['+noall', '+answer', '+time=1', '-x', ip, '-p','5353', '@'+ip], function(err, out, code) {
-                    if (noserverre.test(out))
-                        return null;
-                    var name = out.replace(/[\r\n]/g, '').split(/[\t\s]/).slice(-1)[0]
-                    if (name) {
-                        cache[ip] = name;
-                    }
-            	});
-
             }
             return null;
         }
@@ -222,6 +243,7 @@ var mdns = (function () {
         var string = JSON.stringify(cache, null, 4);
         if (string.length <= 3) // empty files cause issues on load via require()
             return
+        if (!fs.existsSync('./data')){ fs.mkdirSync('./data'); }
         fs.writeFile(file, string, function(err) {
             if (err)
                 console.log(file+' '+err);
@@ -321,6 +343,7 @@ var dns = (function () {
         var string = JSON.stringify(cache, null, 4);
         if (string.length <= 3) // empty files cause issues on load via require()
             return
+        if (!fs.existsSync('./data')){ fs.mkdirSync('./data'); }
         fs.writeFile(file, string, function(err) {
             if (err)
                 console.log(file+' '+err);
@@ -344,9 +367,7 @@ module.exports.dns = dns;
 
 var save = (function () {
     console.log('save all caches in ./data');
-    if (!fs.existsSync("./data")){
-       fs.mkdirSync("./data");
-    }
+    if (!fs.existsSync('./data')){ fs.mkdirSync('./data'); }
     oui.save();
     geo.save();
     mdns.save();

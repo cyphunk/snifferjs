@@ -33,6 +33,8 @@ var debug = true;
 
 var ouiitems = {};
 
+exports.ready = false;
+
 exports.start = function(cb) {
 
     fs.stat(OUI_TXT, function(err, st1) {
@@ -45,11 +47,11 @@ exports.start = function(cb) {
 };
 
 exports.lookup = function(oui, cb) {
-  var h6 = oui.split('-').join('').split(':').join('').toUpperCase();
+  var h6 = oui.split('-').join('').split(':').join('');
 
   if (h6.length != 6) return cb(new Error('not an OUI'), null);
 
-    cb(null, ouiitems[h6]);
+  cb(null, ouiitems[parseInt(h6,16)]);
 };
 
 
@@ -106,12 +108,13 @@ var parse = function(cb) {
 
       if ((!!h6) && (h6.length === 6) && (!!name) && (name.length > 0)) {
         id = parseInt(h6.trimLeft('0'), 16);
-        ouiitems[id] = name;
+        ouiitems[id] = name.replace(/[^\w _-]/g, '');
       }
   });
 
   rl.on('close', function(){
       debug && cb(null, "finished parsing");
+      exports.ready = true;
   });
 };
 

@@ -21,7 +21,8 @@ or to an author responsible for redistribution of a derivative.
 //
 // SETTINGS
 //
-var LOCAL_DOMAIN = '.anon.p'; // is replaced with '' on output
+// var LOCAL_DOMAIN = '.anon.p'; // is replaced with '' on output
+var LOCAL_DOMAIN = '.localdomain'; // is replaced with '' on output
 
 // ENTROPY GRAPH
 var ENTROPY_ENABLED      = false;   // if dropping packets, try disabling
@@ -51,7 +52,7 @@ var PROCESS_EXIT_WAIT = 1500; // need to wait on exit so file saves complete
 var util     = require('util');
 var pcap     = require("pcap"), pcap_session;
 var DNS = require("pcap/decode/dns"); // pcap@2.0.1 dns decoding requires
-var express  = require('express')
+var express  = require('express');
 var app      = express();
 var server   = require('http').createServer(app);
 var io       = require('socket.io').listen(server);
@@ -171,14 +172,18 @@ stdin.on( 'data', function( key ){
   else if ( key === '\u0013') { // ctrl+s aka save
     save_state();
   }
-  else if ( key === '\u0014') { // ctrl+t aka test
+  else if ( key === '\u0014' || key === '\u001bt' ) { // ctrl+t or alt+t aka test
     cache.oui.show();
     cache.geo.show();
     cache.mdns.show();
     cache.dns.show();
+    console.log("packets:"+packet_count);
+  }
+  else {
+      console.log("unknown key: ");
+      console.log(util.inspect(key,{depth: null})); // use to see key
   }
 
-  //console.log(util.inspect(key,{depth: null})); // use to see key
   // write the key to stdout all normal like
   process.stdout.write( key );
 });
@@ -264,6 +269,12 @@ var mail_request_content = function (buf) {
     // return content;
 };
 
+var mail_tls_as_mails = function (buf) {
+    var str = mail_request_content(buf);
+    if (!str || MAIL_TLS_AS_MAILS == false)
+        return false;
+    return (/(STARTTLS|CAPA|STLS)/.test(str))
+};
 // var request_parser = new HTTPParser(HTTPParser.REQUEST),
 
 
@@ -364,13 +375,11 @@ var parse_packet = function(packet, callback) {
     // cleanup
          if (dat.sname.match(/^\d+\.\d+\.\d+\.\d+$/))  dat.sname = null;
     else if (dat.sname.substr(-10) === '.1e100.net')   dat.sname = 'google.com'; // deal with google
-    else
-        dat.sname = dat.sname.split('.').slice(-3).join('.'); //oo.aa.domain.com into aa.domain.com)
+    else                                               dat.sname = dat.sname.split('.').slice(-3).join('.'); //oo.aa.domain.com into aa.domain.com)
 
          if (dat.dname.match(/^\d+\.\d+\.\d+\.\d+$/))  dat.dname = null;
     else if (dat.dname.substr(-10) === '.1e100.net')   dat.dname = 'google.com';
-    else
-        dat.dname = dat.dname.split('.').slice(-3).join('.');
+    else                                               dat.dname = dat.dname.split('.').slice(-3).join('.');
 
     // MDNS
          if (dat.siplocal) dat.smdnsname = cache.mdns.ptr(dat.sip)
@@ -412,13 +421,13 @@ var parse_packet = function(packet, callback) {
                     var new_data = cache.new_data.ptr(iplocal, 'dns');
 
                     // populate dns cache with the response
-                    cache.dns.insert(dns.answer.rrs[i].rdata.addr.toString(), dns.answer.rrs[i].name);
+                    cache.dns.insert(dns.answer.rrs[i].rdata.addr.join('.'), dns.answer.rrs[i].name);
 
                     // prepare data to be sent to client
                     if (!DNS_ONLY_FIRST || new_data) {
                         dat.app.type = 'dns response';
                         dat.app.name = dns.answer.rrs[i].name.split('.').slice(-3).join('.'); //only last 3 octets of a domain
-                        dat.app.ip   = dns.answer.rrs[i].rdata.addr.toString();
+                        dat.app.ip   = dns.answer.rrs[i].rdata.addr.join('.');
                     }
                 }
             }
@@ -488,7 +497,10 @@ var parse_packet = function(packet, callback) {
                 if (data) {
                     // for now showing all plaintext. otherwise we would wathc to check new_data first
                     cache.new_data.ptr(iplocal, 'mail');
-                    dat.app.type = 'mail';
+                    if (mail_tls_as_mails(data))
+                        dat.app.type = 'mails';
+                    else
+                        dat.app.type = 'mail';
                     dat.app.data = data;
 
                     if (VERBOSE_DEBUG)
