@@ -8,11 +8,18 @@ read -p "continue?"
 echo "# POP"
 CR=$'\r'
 # src https://gist.github.com/xionluhnis/4712075
+
 exec 3<>/dev/tcp/$1/110
 read ok line <&3
 [ "${ok%$CR}" != "+OK" ] && exit 5
 echo "got ok for connect"
+
 echo user "$2" >&3
 read ok line <&3
 [ "${ok%$CR}" != "+OK" ] && exit 5
 echo "got ok for user. exit"
+
+echo pass "ASDASDASDASD" >&3
+read ok line <&3
+[ "${ok%$CR}" != "+OK" ] && exit 5
+# should fail here

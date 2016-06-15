@@ -40,7 +40,7 @@ var HTTP_ONLY_FIRST      = false; // set false for shows with less people
 var BROADCAST_ONLY_FIRST = true;
 var DNS_ONLY_FIRST       = true;
 var MAIL_ONLY_LOGIN      = false; //false to show all unencrypted mail packets
-
+var MAIL_TLS_AS_MAILS    = true; // count plain mail with starttls count as encrypted
 var PROCESS_EXIT_WAIT = 1500; // need to wait on exit so file saves complete
 
 // not used atm:
@@ -250,7 +250,6 @@ var detect_mail_login_request = function (buf) {
 };
 
 var mail_request_content = function (buf) {
-    // from pcap.js TCP_tracker.prototype.detect_http_request
     var str = buf.toString('utf8', 0, buf.length);
     var isAscii = true;
     for (var i=0, len=str.length; i<len; i++) {
@@ -262,11 +261,6 @@ var mail_request_content = function (buf) {
     if (isAscii)
         return str;
     return null;
-    // var content = "";
-    // match = str.match(/(GET|POST)\s+[^\s\r\n]+/i)
-    // match ? content+=match[0].substring(4,HTTP_LENGTH_MAX+4) : null;
-    // return (/^(OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT|COPY|LOCK|MKCOL|MOVE|PROPFIND|PROPPATCH|UNLOCK) [^\s\r\n]+ HTTP\/\d\.\d\r\n/.test(str));
-    // return content;
 };
 
 var mail_tls_as_mails = function (buf) {
@@ -488,23 +482,28 @@ var parse_packet = function(packet, callback) {
     // only checking dport to reduce amount of packets
     else if (packet.payload.payload.payload.decoderName === 'tcp' && (packet.payload.payload.payload.dport === 143 || packet.payload.payload.payload.dport === 110)) {// || packet.payload.payload.payload.sport === 443)) {
         cache.new_port.ptr(iplocal, 'mail');
+        var tcp = packet.payload.payload.payload;
+        //console.log('p:\n'+util.inspect(tcp,{depth: null}));
 
-        var tcp = packet.payload.payload.payload
-
-        if (tcp.data_bytes) {
+        if (tcp.data) {
             if (!MAIL_ONLY_LOGIN || detect_mail_login_request(tcp.data)) {
                 var data = mail_request_content(tcp.data);
+
                 if (data) {
                     // for now showing all plaintext. otherwise we would wathc to check new_data first
                     cache.new_data.ptr(iplocal, 'mail');
                     if (mail_tls_as_mails(data))
                         dat.app.type = 'mails';
-                    else
-                        dat.app.type = 'mail';
+                    else {
+                        dat.app.type = 'mail'; console.log("setup") }
                     dat.app.data = data;
 
                     if (VERBOSE_DEBUG)
                         console.log("MAIL DATA: "+data);
+                }
+                else {
+                    console.log('err:\n'+util.inspect(tcp.data,{depth: null}));
+
                 }
             }
         }
