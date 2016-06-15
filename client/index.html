@@ -17,14 +17,17 @@ derivitive your work is based on.
 by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
 -->
 
+<!--
+    IF USING ENTROPY GRAPHS UNCOMMENT FUNCTION IN ONLOAD
+-->
 <script src="/socket.io/socket.io.js"></script>
 <!-- we need jquery for entropy charts. their standalone framework fails.
      otherwise i wouldnt use this shit -->
 <script src="/client/js/highcharts.src.js"></script>
-<script src="client/js/map.src.js"></script>
-<script src="client/js/data.src.js"></script>
-<script src="client/js/exporting.src.js"></script>
-<script src="client/js/world.js"></script>
+<script src="/client/js/map.src.js"></script>
+<script src="/client/js/data.src.js"></script>
+<script src="/client/js/exporting.src.js"></script>
+<script src="/client/js/world.js"></script>
 <!-- 'ma is not a function' error is expected, i guess -->
 
 <script>
@@ -233,7 +236,8 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
         if (document.getElementById('shownames').checked)
             show_hostnames = true;
 
-        // load_entropy_graph();
+
+        load_entropy_graph();
     }
 
     function toggle_names() {
@@ -421,10 +425,14 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
           window.scrollTo(0, document.body.scrollHeight);
     });
     socket.on('entropy', function (data) {
-        //console.log(data);
+        if (!entropy_graph_loaded)
+            load_entropy_graph();
+
+        //console.log('entropy data');console.log(data);
         var x = data.count; //(new Date()).getTime(); // current time
         var y = data.entropy;
-        $('#container').highcharts().series[0].addPoint([x, y], true, true);
+        //$('#container').highcharts().series[0].addPoint([x, y], true, true);
+        entropy_graph.series[0].addPoint([x, y], true, true);
     });
 
 
@@ -493,6 +501,8 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
         });
     }
     function toggle_entropy() {
+        if (!entropy_graph_loaded)
+            load_entropy_graph();
         var entropybox = document.getElementById('entropybox');
         var entropygraph = document.getElementById('container');
         if (entropybox.checked)
@@ -502,7 +512,9 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
         entropygraph.style.width   = (window.innerWidth-100)+'px';
     }
     var entropy_graph;
+    var entropy_graph_loaded = false;
     var load_entropy_graph = function () {
+        entropy_graph_loaded = true;
         // $('#container').highcharts({
         entropy_graph = new Highcharts.Chart({
             chart: {

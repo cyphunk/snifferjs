@@ -25,10 +25,11 @@ or to an author responsible for redistribution of a derivative.
 var LOCAL_DOMAIN = '.localdomain'; // is replaced with '' on output
 
 // ENTROPY GRAPH
-var ENTROPY_ENABLED      = false;   // if dropping packets, try disabling
-var ENTROPY_BUFFER_LEN   = 2048*10; // entropy buffer size
-var ENTROPY_BUFFER_DEBUG = false;   // debugging to check buffer utilization
-var ENTROPY_LOG          = false;   // show entropy results on console
+var ENTROPY_ENABLED           = true;   // if dropping packets, try disabling
+var ENTROPY_BUFFER_LEN        = 2048;//*10; // entropy buffer size
+var ENTROPY_BUFFER_DEBUG      = true;   // debugging to check buffer utilization
+var ENTROPY_LOG               = true;   // show entropy results on console
+var ENTROPY_PROTOCOL_AGNOSTIC = false; // if true parse raw_packet (slow) if false run on tcp/udp only
 
 var VERBOSE_DEBUG   = false; // show tuns of shit
 var HTTP_LENGTH_MAX = 128;    // how many chars of HTTP requests to show
@@ -555,6 +556,15 @@ var parse_packet = function(packet, callback) {
     if (dat.app.type != null)
         callback(dat);
 
+    if (ENTROPY_ENABLED && !ENTROPY_PROTOCOL_AGNOSTIC
+        && (packet.payload.payload.payload.decoderName === 'tcp' || packet.payload.payload.payload.decoderName === 'udp')
+        && packet.payload.payload.payload.dataLength >= 0x80 /*sensible*/
+       ) {
+        // console.log(util.inspect(packet.payload.payload.payload, {depth: null})); process.exit()
+        entropy.ptr(packet.payload.payload.payload.data, function(entropy) {
+            io.to('sniffer').emit('entropy', entropy);
+        });
+    }
     // or return all packets with dat defined (such as tcp/udp port parsing commented out above)
     // callback(dat);
 
@@ -562,17 +572,72 @@ var parse_packet = function(packet, callback) {
 
 if (ENTROPY_ENABLED) {
     var entropy = (function () {
+        var current_run = 0;
+        var busy = false;
+        function scan_ptr(buf, callback) {
+            busy = true;
+            var bytes_completed = 0;
+            var buf_len = buf.length;
+            var buf_offset = 0;
+            var buf_read_len = ENTROPY_BUFFER_LEN < buf_len ? ENTROPY_BUFFER_LEN : buf_len;
+            var entropy;
+            // while (buf_len > 0 && offset < buf_len &&  (entropy = libdisorder.shannon_H(
+            //                            buf.slice(offset, ENTROPY_BUFFER_LEN < buf_len ? ENTROPY_BUFFER_LEN : buf_len),
+            //                            buf_len ? ENTROPY_BUFFER_LEN : buf_len))  )
+            // {
+            while (buf_len > 0 && buf_offset < buf_len) {
+                libdisorder.shannon_H.async(
+                                        buf.slice(buf_offset, buf_offset+buf_read_len),
+                                        buf_read_len,
+                                        function(err,res) {
+                                            var maxent = libdisorder.get_max_entropy();
+                                            var ratio = libdisorder.get_entropy_ratio();
+                                            var data = {
+                                                entropy: res,
+                                                maxent: maxent,
+                                                ratio: ratio,
+                                                count: current_run
+                                                }
+                                            if (ENTROPY_LOG)
+                                                console.log('<'+("        "+current_run).slice(-8)+'> entropy: '+res.toFixed(6)+' maxent: '+maxent.toFixed(6)+' ratio: '+ratio.toFixed(6)+' buf_offset: '+buf_offset+' buf_len: '+buf_len);
+                                            callback(data);
+                                            current_run  += 1;
+                                            if (buf_offset+buf_read_len >= buf_len)
+                                                busy = false;
+                                       });
+                // ready offsets for next run
+                buf_offset   += buf_read_len;
+                if (buf_offset+ENTROPY_BUFFER_LEN < buf_len)
+                    buf_read_len = ENTROPY_BUFFER_LEN;
+                else
+                    buf_len;
+            }
+        }
+        return {
+            ptr: function (buf, callback) {
+              if (busy) {
+                //   console.log('entopy busy');
+                return;
+              }
+              return scan_ptr(buf, callback);
+            },
+            busy: function () { return busy }
+        };
+    }());
+
+    var entropy_old = (function () {
         var cache_buf = new Buffer(ENTROPY_BUFFER_LEN)
         cache_buf.type = ref.types.char
         var offset = 0;
-        var current_run = 0
+        var current_run = 0;
+        var busy = false;
         var scan = function(callback) {
                 current_run+=1;
+                offset = 0;
                 var entropy = libdisorder.shannon_H(cache_buf, ENTROPY_BUFFER_LEN);
                 var maxent = libdisorder.get_max_entropy();
                 var ratio = libdisorder.get_entropy_ratio();
-                offset = 0;
-                data = {
+                var data = {
                     entropy: entropy,
                     maxent: maxent,
                     ratio: ratio,
@@ -591,21 +656,28 @@ if (ENTROPY_ENABLED) {
                     continue; // wait until scan has finished to continue reading rest of buffer
 
                 // Buffer appears to handle over shots without loosing data (len_written reflects what was actually written)
-                var len_written = buf.copy(cache_buf, offset, 0, buf_len <= (ENTROPY_BUFFER_LEN-offset) ? buf_len : (ENTROPY_BUFFER_LEN-offset));
+                var srcend = buf_len <= (ENTROPY_BUFFER_LEN-offset) ? buf_len : (ENTROPY_BUFFER_LEN-offset);
+                //                src            dst  dststart srcstart  srcend
+                var len_written = buf.copy(cache_buf,   offset,       0, srcend);
+                if (ENTROPY_BUFFER_DEBUG)
+                    console.log('entropy_buf wrote: cache_buf[0:'+srcend+']='+len_written+ 'b  from buf['+offset+':'+srcend+']  cache_free: '+(ENTROPY_BUFFER_LEN-offset-len_written)+' buf_left: '+(buf_len-len_written));
                 offset += len_written;
                 buf_len -= len_written;
-                if (ENTROPY_BUFFER_DEBUG)
-                    console.log('entropy_buf wrote: '+len_written+ ' offset: '+offset+' buf_left: '+buf_len+' cache_free: '+(ENTROPY_BUFFER_LEN-offset));
 
                 if (offset >= ENTROPY_BUFFER_LEN)
                     scan(callback);
 
             }
+            if (ENTROPY_BUFFER_DEBUG) console.log('entropy finished buffer');
+            busy = false;
         }
         return {
             ptr: function (buf, callback) {
+              if (busy) {console.log('entropy busy');return busy;}
+              busy = true;
               return scan_ptr(buf, callback);
-            }
+            },
+            busy: function () { return busy }
         };
     }());
 }
@@ -638,12 +710,25 @@ pcap_session.on('packet', function (raw_packet) {
     //socket.emit('packet_obj', { data: packet });
     // send parsed packet:
 
+
+    // handle: node_pcap: EthernetFrame() - Don't know how to decode ethertype 34824
+    if (raw_packet.buf && raw_packet.buf.length >= 16
+        && raw_packet.buf.slice(12,14).readUInt16BE(0, true) == 0x8808
+        )  {
+        // console.log(raw_packet.header); console.log(raw_packet.buf.slice(12,14).readUInt16BE(0, true));
+        return;
+    }
+
+    //if (packet.payload.ethertype == 0x8808) // Ethernet flow control https://en.wikipedia.org/wiki/EtherType
+    //    return;
+
     try {
         var packet = pcap.decode.packet(raw_packet);
     } catch(err) {
         dumpError(err);
         return null;
     }
+
 
     parse_packet(packet, function(packet){
         packet_count += 1;
@@ -660,19 +745,27 @@ pcap_session.on('packet', function (raw_packet) {
         io.to('sniffer').emit('packet', { data: packet });
     });
 
-    // entropy
-    if (ENTROPY_ENABLED && packet.link && packet.link.ip) { // || packet.link.ip.tcp.sport === 443)) {
-        if (packet.link.ip.tcp && packet.link.ip.tcp.data_bytes) {
-            entropy.ptr(packet.link.ip.tcp.data, function(entropy) {
-                io.to('sniffer').emit('entropy', entropy);
-            });
-        }
-        else if (packet.link.ip.udp && packet.link.ip.udp.data_bytes) {
-            entropy.ptr(packet.link.ip.udp.data, function(entropy) {
-                io.to('sniffer').emit('entropy', entropy);
-            });
-        }
+    // entropy -- PROTOCOL AGNOSTIC way
+    if (ENTROPY_ENABLED && ENTROPY_PROTOCOL_AGNOSTIC
+        && raw_packet.buf.length >= 80 /*sensible*/
+       ) {
+        //console.log(util.inspect(raw_packet, {depth: null})); process.exit()
+        entropy.ptr(raw_packet.buf, function(entropy) {
+            io.to('sniffer').emit('entropy', entropy);
+        });
     }
+    // entropy -- NON AGNOSTIC:
+    // if (ENTROPY_ENABLED && packet.pcap_header.len > 0x70 /*eth+tcp=0x44, etc+udp=0x32 */) {
+    //     if (!packet.payload || !packet.payload.payload
+    //         || !packet.payload.payload.saddr
+    //         || !packet.payload.payload.payload
+    //         || !packet.payload.payload.payload.length > 0)
+    //         return;
+    //     //console.log(util.inspect(packet.payload.payload.payload, {depth:null}))
+    //     entropy.ptr(packet.payload.payload.payload.data, function(entropy) {
+    //         io.to('sniffer').emit('entropy', entropy);
+    //     });
+    // }
 });
 
 
