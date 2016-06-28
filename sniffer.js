@@ -22,10 +22,11 @@ or to an author responsible for redistribution of a derivative.
 // SETTINGS
 //
 // var LOCAL_DOMAIN = '.anon.p'; // is replaced with '' on output
-var LOCAL_DOMAIN = '.localdomain'; // is replaced with '' on output
+// var LOCAL_DOMAIN = '.localdomain';
+var LOCAL_DOMAIN = '.local';
 
 // ENTROPY GRAPH
-var ENTROPY_ENABLED           = true;   // if dropping packets, try disabling
+var ENTROPY_ENABLED           = false;   // if dropping packets, try disabling
 var ENTROPY_BUFFER_LEN        = 2048;//*10; // entropy buffer size
 var ENTROPY_BUFFER_DEBUG      = true;   // debugging to check buffer utilization
 var ENTROPY_LOG               = true;   // show entropy results on console
@@ -42,7 +43,8 @@ var BROADCAST_ONLY_FIRST = true;
 var DNS_ONLY_FIRST       = true;
 var MAIL_ONLY_LOGIN      = false; //false to show all unencrypted mail packets
 var MAIL_TLS_AS_MAILS    = true; // count plain mail with starttls count as encrypted
-var PROCESS_EXIT_WAIT = 1500; // need to wait on exit so file saves complete
+var MAIL_CONVERT_BASE64  = true; // check logins with base64 user/pass
+var PROCESS_EXIT_WAIT    = 1500; // need to wait on exit so file saves complete
 
 // not used atm:
 // var MAKE_STATE_CHANGE_ON_HIDDEN_OTHER = false; // will toggle state cache on any non-matched packet
@@ -149,6 +151,7 @@ if (process.getuid() == 0) {
 }
 
 cache = require('./sniffer_cache.js'); //oui,geo,dns,etc caches
+cache.mdns.set_local_domain(LOCAL_DOMAIN);
 
 function save_state() {
     console.log('saving state');
@@ -186,7 +189,7 @@ stdin.on( 'data', function( key ){
   }
 
   // write the key to stdout all normal like
-  process.stdout.write( key );
+  //process.stdout.write( key );
 });
 
 
@@ -250,22 +253,36 @@ var detect_mail_login_request = function (buf) {
     return (/(LOGIN|login) /.test(str));
 };
 
+var base64Rejex = /^(?:[A-Z0-9+\/]{4})*(?:[A-Z0-9+\/]{2}==|[A-Z0-9+\/]{3}=|[A-Z0-9+\/]{4})$/i;
+var base64Rejex = /^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$/;
 var mail_request_content = function (buf) {
-    var str = buf.toString('utf8', 0, buf.length);
+    var str = buf.toString('utf8', 0, buf.length).trim();
     var isAscii = true;
+    var isBase64 = false;
     for (var i=0, len=str.length; i<len; i++) {
         if (buf[i] > 127) {
             isAscii=false;
             break;
         }
     }
-    if (isAscii)
+    if (MAIL_CONVERT_BASE64 == true) {
+        var words = str.split(' ');
+        for (var i=0; i<words.length;i++) {
+            if (words[i].length > 6 && base64Rejex.test(words[i]))
+                words[i] = words[i]+' '+new Buffer(words[i], 'base64').toString().replace(/\u0000/g, ' ');
+            if (i == words.length-1)
+                str = words.join(' ');
+        }
+    }
+    if (isAscii) {
         return str;
+    }
     return null;
 };
 
 var mail_tls_as_mails = function (buf) {
-    var str = mail_request_content(buf);
+    //var str = mail_request_content(buf);
+    var str = buf;
     if (!str || MAIL_TLS_AS_MAILS == false)
         return false;
     return (/(STARTTLS|CAPA|STLS)/.test(str))
@@ -293,10 +310,12 @@ pcap.findalldevs().forEach(function (dev) {
 
 
 // Routinely check for dropped packets
+var ps_drop = 0;
 setInterval(function () {
     var stats = pcap_session.stats();
-    if (stats.ps_drop > 0) {
-        console.log("\n\nPCAP dropped packets: " + util.inspect(stats));
+    if (stats.ps_drop != ps_drop) {
+        console.log("PCAP dropped packets: " + util.inspect(stats));
+        ps_drop = stats.ps_drop;
     }
 }, 5000);
 
@@ -365,8 +384,8 @@ var parse_packet = function(packet, callback) {
     dat.gatewayip = gatewayip;
 
     // DNS CACHE REVERSE RESOLUTION
-    dat.sname = cache.dns.ptr(dat.sip).replace(LOCAL_DOMAIN,'') //replace the shows domain for now
-    dat.dname = cache.dns.ptr(dat.dip).replace(LOCAL_DOMAIN,'')
+    dat.sname = cache.dns.ptr(dat.sip).replace(LOCAL_DOMAIN,''); //replace the shows domain for now
+    dat.dname = cache.dns.ptr(dat.dip).replace(LOCAL_DOMAIN,'');
     // cleanup
          if (dat.sname.match(/^\d+\.\d+\.\d+\.\d+$/))  dat.sname = null;
     else if (dat.sname.substr(-10) === '.1e100.net')   dat.sname = 'google.com'; // deal with google

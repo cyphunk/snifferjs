@@ -165,7 +165,7 @@ var mdns = (function () {
     var cache = {},
         requests = {};
     var noserverre = new RegExp('no servers could be reached');
-
+    var local_domain = '.local'; // removed from name. call set_local_domain from parent
 
     var file = __dirname+'/data/save_mdns.json';
     if (LOAD_FROM_FILE) {
@@ -199,28 +199,28 @@ var mdns = (function () {
                     //delete requests[ip];
                     // if (out == ";; connection timed out; no servers could be reached\n")
                     if (out && !noserverre.test(out) && out.length > 0) {
-                        cache[ip] = out.replace("\n", '').replace(/\.$/,'');
+                        cache[ip] = out.replace("\n", '').replace(/\.$/,'').replace(local_domain, '');
                     }
                     else {
     // TRY TO HOST 5353 -------------------------------------------------------
     DEBUG_MDNS && console.log('>> dig 5353 netcast '+ip);
                         exec('dig',flags.concat(['-x', ip, '-p','5353', '@'+ip]), function(err, out, code) {
                             if (out && !noserverre.test(out) && out.length > 0) {
-                                cache[ip] = out.replace("\n", '').replace(/\.$/,'');
+                                cache[ip] = out.replace("\n", '').replace(/\.$/,'').replace(local_domain, '');
                             }
                             else {
     // TRY TO HOST 53 ---------------------------------------------------------
     DEBUG_MDNS && console.log('>>> dig 53 host '+ip);
                                 exec('dig',flags.concat(['-x', ip, '-p','53', '@'+ip]), function(err, out, code) {
                                     if (out && !noserverre.test(out) && out.length > 0) {
-                                        cache[ip] = out.replace("\n", '').replace(/\.$/,'');
+                                        cache[ip] = out.replace("\n", '').replace(/\.$/,'').replace(local_domain, '');
                                     }
                                     else {
     // TRY TO NETCAST 53 ------------------------------------------------------
     DEBUG_MDNS && console.log('>>>> dig 53 netcast '+ip);
                                         exec('dig',flags.concat(['-x', ip, '-p','53', '@224.0.0.251']), function(err, out, code) {
                                             if (out && !noserverre.test(out) && out.length > 0) {
-                                                cache[ip] = out.replace("\n", '').replace(/\.$/,'');
+                                                cache[ip] = out.replace("\n", '').replace(/\.$/,'').replace(local_domain, '');
                                             }
                                             else {
     DEBUG_MDNS && console.log('>>>> dig 53 netcast: '+ip+" FAIL.\n"+out);
@@ -260,7 +260,8 @@ var mdns = (function () {
             cache[ip] = name;
         },
         save: function () { save(); },
-        show: function () { console.log('mdns'); console.log(cache) }
+        show: function () { console.log('mdns'); console.log(cache) },
+        set_local_domain: function(domain) { local_domain = domain; }
     };
 }());
 module.exports.mdns = mdns;
