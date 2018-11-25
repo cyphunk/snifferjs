@@ -300,7 +300,7 @@ var dns = (function () {
                 dnser.reverse(ip, function (err, domains) {
                     if (err) {
                         cache[ip] = ip;
-                        // console.log('dns err'+err+' '+ip)
+                        console.log('dns err'+err+' '+ip)
                         // TODO - check for network and broadcast addrs, since we have iface info
                     } else {
                         cache[ip] = domains[0];
@@ -335,6 +335,10 @@ var dns = (function () {
         },
         insert: function (ip, name) {
             cache[ip] = name;
+        },
+        setServer: function(dnsserver) {
+            dnser.setServers([dnsserver]);
+            return dnser.getServers();
         },
         save: function () { save(); },
         show: function () { console.log('dns'); console.log(cache);console.log('dns retry'); console.log(retry) }

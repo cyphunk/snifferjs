@@ -89,29 +89,36 @@ if (ENTROPY_ENABLED) {
 
 //console.log('clear your DNS cache after start. sudo killall -HUP mDNSResponder');
 if (process.argv.length < 3) {
-    console.error("\nExample use: ");
-    console.error('  sudo node sniffer.js "" "tcp port 80"');
-    console.error('  sudo node sniffer.js eth1 ""');
-    console.error('  sudo node sniffer.js lo0 "ip proto \\tcp and tcp port 80"');
-    console.error('  sudo node sniffer.js en0 "not net 192.168.1.0/27 and not host 192.168.1.32 and not host 192.168.1.33"');
+    console.error("\nuse:\n");
+    console.error("  sudo node sniffer.js <interface> <pcap_filter> <dns_server> [<gateyway>]\n\n");
+    console.error("\t<interface>    network inteface to listen on (eth0, en0, wlan0, etc)\n");    
+    console.error("\t<pcap_filter>  put \"\" for no filtering.\n");    
+    console.error("\t<dns_server>   Define DNS server. E.g. 127.0.0.1 or check upstream server currently defined\n");    
+    console.error("\t<gateway>      On Linux define upstream gateway address.\n");    
+    console.error("Examples:\n");    
+    console.error('  sudo node sniffer.js "" "tcp port 80" 127.0.0.1');
+    console.error('  sudo node sniffer.js eth1 "" 127.0.0.1');
+    console.error('  sudo node sniffer.js lo0 "ip proto \\tcp and tcp port 80" 127.0.0.1');
+    console.error('  sudo node sniffer.js en0 "not net 192.168.1.0/27 and not host 192.168.1.32 and not host 192.168.1.33" 127.0.0.1');
     process.exit(1);
 }
 
 
 var netinterface = process.argv[2]
 var filter = process.argv[3];
+var dnsserver = process.argv[4];
 
 var gatewayip;
 if (/^darwin/.test(process.platform)) {
     gatewayip = require('netroute').getGateway(netinterface);
 }
 else {
-    if (process.argv.length <= 4) {
+    if (process.argv.length <= 5) {
         console.error("On linux please supply gateway address as argument");
         process.exit(1);
     }
     else {
-        gatewayip = process.argv[4];
+        gatewayip = process.argv[5];
     }
 }
 
@@ -147,6 +154,7 @@ if (process.getuid() == 0) {
 }
 
 cache = require('./sniffer_cache.js'); //oui,geo,dns,etc caches
+cache.dns.setServer(dnsserver);
 
 function save_state() {
     console.log('saving state');
