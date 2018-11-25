@@ -12,8 +12,8 @@ implementation for the theatrical stage.
 cyphunk@deadhacker.com for use in the Anonymous-P theater production. Pull
 requests and bug reports appreciated at any of:
 
-* https://git.xiala.net/cyphunk/snifferjs
-* https://github.com/cyphunk/snifferjs
+*   <https://github.com/cyphunk/snifferjs>
+*   <https://git.xiala.net/cyphunk/snifferjs>
 
 ![Screencast of use](./sniffer.gif)
 
@@ -21,16 +21,17 @@ requests and bug reports appreciated at any of:
 Features
 --------
 
- * Alt+Click on Source IP filters current list by IP
- * Alt+Click Application Protocol column filters by protocol
- * MDNS host resolution
- * Entropy Graph (protocol agnostic method to measure amount of crypto in use)
- * Map of sessions for destinations geographical (not shown in screencast)
- * Auto open image urls in new tab/window (not show)
- * Hover over image url to show
- * Click found HTTP url to open in new tab/window
- * POP/IMAP Logins shown but unlike screen cast text is same color as background.
- * Login's via HTTP Post or HTTP Auth shown in light green
+*   Alt+Click on Source IP filters current list by IP
+*   Alt+Click Application Protocol column filters by protocol
+*   MDNS host resolution
+*   Entropy Graph (protocol agnostic method to measure amount of crypto in use)
+*   Map of sessions for destinations geographical (not shown in screencast)
+*   Auto open image urls in new tab/window (not show)
+*   Hover over image url to show
+*   Click found HTTP url to open in new tab/window
+*   POP/IMAP Logins shown but unlike screen cast text is same color as 
+    background.
+*   Login's via HTTP Post or HTTP Auth shown in light green
 
 
 License
@@ -47,7 +48,7 @@ required to include this license in any documentation and any public facing
 derivative. You are also required to include attribution to the original author
 or to an author responsible for redistribution of a derivative.
 
-http://nonwhiteheterosexualmalelicense.org
+<http://nonwhiteheterosexualmalelicense.org>
 
 
 Install
@@ -55,7 +56,7 @@ Install
 
 Requires node libpcap-dev installed on your system.
 
-    git clone https://git.xiala.net/cyphunk/snifferjs.git
+    git clone https://github.com/cyphunk/snifferjs.git
     cd snifferjs
     npm install
 
@@ -80,27 +81,33 @@ Sniffer.js has been tested with
     * npm 2.14.12
     * node-gyp 3.0.3
 
+Others have [reported](https://github.com/node-pcap/node_pcap/issues/196)
+``4.4.4`` ``5.7.0`` ``8.9.2`` may also work. If you run into issues consider
+downgrading with ``n`:
+
+    npm install -g -n
+    n 4.2.6
+    rm -rf node_modules
+    npm install
 
 Configuration
 -------------
 
-```
-HTTP_ONLY_FIRST=true  Only the first HTTP packet will be shown. If a network
-                      user accesses http://gessnerallee.ch only the GET for
-                      the index.html will be shown, not subsequent image and
-                      resource loads over HTTP. *_ONLY_FIRST applies in a
-                      similar many for other protocols.
+    HTTP_ONLY_FIRST=true  Only the first HTTP packet will be shown. If a network
+                          user accesses http://gessnerallee.ch only the GET for
+                          the index.html will be shown, not subsequent image and
+                          resource loads over HTTP. *_ONLY_FIRST applies in a
+                          similar many for other protocols.
 
-FIRST_PER_IP=false    The *_ONLY_FIRST flags apply globally. This means if two
-                      network users access HTTP sites at the same time only
-                      the first will be shown.
+    FIRST_PER_IP=false    The *_ONLY_FIRST flags apply globally. This means if two
+                          network users access HTTP sites at the same time only
+                          the first will be shown.
 
-MAIL_ONLY_LOGIN=true  Only LOGIN requests for POP/IMAP are shown.
+    MAIL_ONLY_LOGIN=true  Only LOGIN requests for POP/IMAP are shown.
 
-ONLY_OUTGOING=true    Only show packets going out from 192.168 10. and 172.
-                      networks. (AT THE MOMENT NOT AVAILABLE. ONLY_OUTGOING
-                      is the default behavior)
-```
+    ONLY_OUTGOING=true    Only show packets going out from 192.168 10. and 172.
+                          networks. (AT THE MOMENT NOT AVAILABLE. ONLY_OUTGOING
+                          is the default behavior)
 
 Installation Alternatives
 -------------------------
@@ -120,7 +127,7 @@ Older node v0.10.25 npm v1.3.24
 Etc
 ---
 
-## Entropy Graphs
+### Entropy Graphs
 
 Currently disabled by default the code can display a graph of overall network
 data entropy levels. For this one needs to install libdisorder
@@ -136,7 +143,7 @@ data entropy levels. For this one needs to install libdisorder
     cp libdisorder.so <snifferjsdir>
 
 
-## Troubleshooting MDNS
+### Troubleshooting MDNS
 
 To check that dig resolve for MDNS resolution:
 
@@ -149,3 +156,7 @@ should return something like:
 
 ``sniffer_cache.js`` uses this command and takes the last
 part of the text when split on spaces.
+
+### Error: libpcap.so.0.8: cannot open shared object
+
+Recompile

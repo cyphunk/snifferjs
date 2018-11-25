@@ -69,17 +69,18 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
     // cross browser shit
     function xinnerText(elem,newtext) {
         if (newtext) {
-            if ('innerText' in elem)        // most browsers do this
-                elem.innerText = newtext;
-            else if ('textContent' in elem) // "standards compliant browsers"
-                elem.textContent = newtext; //  (aka only firefox) do this
-            }
-        else {
-            if ('innerText' in elem)
-                return elem.innerText;
-            else if ('textContent' in elem)
-                return elem.textContent;
-            }
+            if (newtext) {
+                if (elem && elem.innerText !== undefined)        // most browsers do this
+                    elem.innerText = newtext;
+                else if (elem && elem.textContent !== undefined) // "standards compliant browsers"
+                    elem.textContent = newtext; //  (aka only firefox) do this
+                }
+            else {
+                if (elem && elem.innerText !== undefined)
+                    return elem.innerText;
+                else if (elem && elem.textContent !== undefined)
+                    return elem.textContent;
+                }
     }
 
 
