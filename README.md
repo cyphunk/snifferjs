@@ -82,13 +82,7 @@ Sniffer.js has been tested with
     * node-gyp 3.0.3
 
 Others have [reported](https://github.com/node-pcap/node_pcap/issues/196)
-``4.4.4`` ``5.7.0`` ``8.9.2`` may also work. If you run into issues consider
-downgrading with ``n`:
-
-    npm install -g -n
-    n 4.2.6
-    rm -rf node_modules
-    npm install
+``4.4.4`` ``5.7.0`` ``8.9.2`` may also work.
 
 Configuration
 -------------
@@ -160,3 +154,12 @@ part of the text when split on spaces.
 ### Error: libpcap.so.0.8: cannot open shared object
 
 Recompile
+
+### Dependency issues
+
+Nodejs. Maybe try downgrading with the ``n`` package:
+
+    npm install -g -n
+    n 4.2.6
+    rm -rf node_modules
+    npm install
