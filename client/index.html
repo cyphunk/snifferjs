@@ -74,13 +74,14 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
                     elem.innerText = newtext;
                 else if (elem && elem.textContent !== undefined) // "standards compliant browsers"
                     elem.textContent = newtext; //  (aka only firefox) do this
-                }
+            }
             else {
                 if (elem && elem.innerText !== undefined)
                     return elem.innerText;
                 else if (elem && elem.textContent !== undefined)
                     return elem.textContent;
-                }
+            }
+        }
     }
 
 
@@ -302,7 +303,7 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
             };
             //filter for IP (alt+click):
             left_ip.onclick = function(event){
-                if(event.altKey) {
+                if(event.altKey || event.ctrlKey) {
                     var filterclass = this.parentElement.parentElement.classList[1];
                    console.log('toggle filter: '+filterclass); // gets IP class (10_0_0_1) from class list
                    toggleRowVisibility(filterclass);
@@ -321,7 +322,7 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
         var dname;
         if (dat.dmdnsname)               dname = newspan(cell_dst, dat.dmdnsname, 'name');
         else if (dat.dname)              dname = newspan(cell_dst, dat.dname,     'name');
-        if (!show_hostnames)             dname.style.display = 'none';
+        if (dname && !show_hostnames)             dname.style.display = 'none';
         if (!dat.diplocal && dat.dgeo)   newspan(cell_dst, dat.dgeo.code, 'geo');
         if (dat.diplocal && dat.ddevice) newspan(cell_dst, dat.ddevice,   'device');
 
@@ -360,7 +361,7 @@ by cyphunk@deadhacker.com for use in the Anonymous-P theater production.
                 };
             }
             cell_app.onclick=function(event){
-                if(event.altKey) {
+                if(event.altKey || event.ctrlKey) {
                     var filterclass = this.classList[1];
                     console.log('toggle: '+filterclass); // gets IP class (10_0_0_1) from class list
                     toggleRowVisibility(filterclass);

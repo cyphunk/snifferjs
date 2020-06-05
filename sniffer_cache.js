@@ -15,11 +15,10 @@ var dnser   = require('dns');
 var fs      = require('fs');
 
 var LOAD_FROM_FILE = true; // Set to true to load caches from disk
-
+var DNS_IP_ENTRY_IF_RESOLVE_FAILS = true; // false to be sure entries are only valid names
 
 // var MAXMIND_FILE = '/usr/local/var/GeoIP/GeoIPCountry.dat';
 var MAXMIND_FILE = __dirname+'/GeoIP.dat';
-
 fs.stat(MAXMIND_FILE, function(err,state) {
     if (err != null) {
         console.error("Missing GeoIP.dat file");
@@ -82,7 +81,7 @@ var oui = (function () {
     }
     return {
         ptr: function (macoui, callback) {
-            return lookup_ptr(macoui, callback);
+            return lookup_ptr(macoui.toUpperCase(), callback);
         },
         save: function () { save(); },
         show: function () { console.log('oui'); console.log(cache) }
@@ -192,24 +191,54 @@ var mdns = (function () {
                     // if you want to run this request continuesly uncomment:
                     //delete requests[ip];
                     // if (out == ";; connection timed out; no servers could be reached\n")
-                    if (noserverre.test(out))
+                    if (noserverre.test(out)) {
+                        // console.log('mdns dig1: no server') 
                         return null;
+                    }
+                        
+                    // console.log('mdns dig1: command output:', out);
 
                     var name = out.replace(/[\r\n]/g, '').split(/[\t\s]/).slice(-1)[0]
                     if (name) {
-                        // console.log(name);
-                        cache[ip] = name;
+                        // BUGBUG:
+                        // in some cases Android.local. 
+                        // becomes problem when target provides good name via reverse dns
+                        // because later code perfers mdns name if exists
+                        // to avoid that when the mdns name is just the Android host:
+                        if ( name.toLowerCase().startsWith("android")) {
+                            // console.log('mdns dig1: is Android. skip');
+                            return null
+                        }
+                        else {
+                            // console.log('mdns dig1: set name:', name);
+                            cache[ip] = name;
+                        }
                     }
                     //process.stderr.write(err);
                     //process.exit(code);
             	});
 		// try to host
+        // this appears to resolve in node, but fails when running manually in linux
                 exec('dig',['+noall', '+answer', '+time=1', '-x', ip, '-p','5353', '@'+ip], function(err, out, code) {
-                    if (noserverre.test(out))
+                    if (noserverre.test(out)) {
+                        // console.log('mdns dig2: no server') 
                         return null;
+                    }
+
+                    // console.log('mdns dig2: command output:', out);
+
                     var name = out.replace(/[\r\n]/g, '').split(/[\t\s]/).slice(-1)[0]
                     if (name) {
-                        cache[ip] = name;
+                        // BUGBUG:
+                        // see note above
+                        if ( name.toLowerCase().startsWith("android")) {
+                            // console.log('mdns dig2: is Android. skip');
+                            return null
+                        }
+                        else { 
+                            // console.log('mdns dig2: set name:', name);
+                            cache[ip] = name;
+                        }
                     }
             	});
 
@@ -299,8 +328,12 @@ var dns = (function () {
                 requests[ip] = true;
                 dnser.reverse(ip, function (err, domains) {
                     if (err) {
-                        cache[ip] = ip;
-                        console.log('dns err'+err+' '+ip)
+                        if (DNS_IP_ENTRY_IF_RESOLVE_FAILS) {
+                            cache[ip] = ip;
+                            // to prevent from trying again (to save resources?) uncomment:
+                            // delete requests[ip];
+                        }
+                        console.log('dns err: "'+err+'" ip: '+ip)
                         // TODO - check for network and broadcast addrs, since we have iface info
                     } else {
                         cache[ip] = domains[0];

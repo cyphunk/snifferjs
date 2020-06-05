@@ -21,7 +21,7 @@ or to an author responsible for redistribution of a derivative.
 //
 // SETTINGS
 //
-var LOCAL_DOMAIN = '.anon.p'; // is replaced with '' on output
+var LOCAL_DOMAIN = '.local'; // is replaced with '' on output
 
 // ENTROPY GRAPH
 var ENTROPY_ENABLED      = false;   // if dropping packets, try disabling
@@ -37,10 +37,12 @@ var HTTP_LENGTH_MAX = 128;    // how many chars of HTTP requests to show
 var FIRST_PER_IP         = false;
 var HTTP_ONLY_FIRST      = false; // set false for shows with less people
 var BROADCAST_ONLY_FIRST = true;
-var DNS_ONLY_FIRST       = true;
+var DNS_ONLY_FIRST       = false;
 var MAIL_ONLY_LOGIN      = false; //false to show all unencrypted mail packets
 
 var PROCESS_EXIT_WAIT = 1500; // need to wait on exit so file saves complete
+
+var SHOW_OTHER_TYPE_DATA = false; // show non-http/mail/dns data as Other
 
 // not used atm:
 // var MAKE_STATE_CHANGE_ON_HIDDEN_OTHER = false; // will toggle state cache on any non-matched packet
@@ -176,7 +178,7 @@ stdin.on( 'data', function( key ){
     save_state();
     setTimeout(function(){process.exit()}, PROCESS_EXIT_WAIT);
   }
-  else if ( key === '\u0013') { // ctrl+s aka save
+  else if ( key === '\u0013' || key === '\u0012') { // ctrl+s or r aka save
     save_state();
   }
   else if ( key === '\u0014') { // ctrl+t aka test
@@ -351,7 +353,9 @@ var parse_packet = function(packet, callback) {
     dat.ddevice  = cache.oui.ptr(doui);
     if (dat.sdevice) dat.sdevice = dat.sdevice.split(' ')[0] // cleanup
     if (dat.ddevice) dat.ddevice = dat.ddevice.split(' ')[0]
-
+    VERBOSE_DEBUG && console.log('dat',dat)
+    VERBOSE_DEBUG && console.log('shost',packet.payload.shost.toString())
+    VERBOSE_DEBUG && console.log('dhost',packet.payload.dhost.toString())
 
     // IP's
     dat.sip      = packet.payload.payload.saddr.toString();
@@ -403,7 +407,7 @@ var parse_packet = function(packet, callback) {
     dat.app.type = null
 
     // use DNS queries to populate reverse IP cache
-    debugger;
+    // debugger;
     if (packet.payload.payload.payload.decoderName === 'udp' && (packet.payload.payload.payload.sport === 53 || packet.payload.payload.payload.dport === 53)) {
         // register this port being matched
         // actually the new_port cache is not used yet
@@ -411,6 +415,8 @@ var parse_packet = function(packet, callback) {
         // print logic based on app parsing vs new
         // port/servics access
         cache.new_port.ptr(iplocal, 'dns');
+
+        // console.log('udp 53. iplocal:',iplocal);
 
         var dns = new DNS().decode(packet.payload.payload.payload.data, 0, packet.payload.payload.payload.data.length);
         if (dns.answer.rrs.length > 0) {
@@ -420,13 +426,13 @@ var parse_packet = function(packet, callback) {
                     var new_data = cache.new_data.ptr(iplocal, 'dns');
 
                     // populate dns cache with the response
-                    cache.dns.insert(dns.answer.rrs[i].rdata.addr.toString(), dns.answer.rrs[i].name);
+                    cache.dns.insert(dns.answer.rrs[i].rdata.addr.join('.'), dns.answer.rrs[i].name);
 
                     // prepare data to be sent to client
                     if (!DNS_ONLY_FIRST || new_data) {
                         dat.app.type = 'dns response';
                         dat.app.name = dns.answer.rrs[i].name.split('.').slice(-3).join('.'); //only last 3 octets of a domain
-                        dat.app.ip   = dns.answer.rrs[i].rdata.addr.toString();
+                        dat.app.ip   = dns.answer.rrs[i].rdata.addr.join('.');
                     }
                 }
             }
@@ -529,7 +535,16 @@ var parse_packet = function(packet, callback) {
 
 
 
-    else if (packet.payload.payload.payload.decoderName === 'tcp' || packet.payload.payload.payload.decoderName === 'tcp') {
+    else if (SHOW_OTHER_TYPE_DATA &&
+             (packet.payload.payload.payload.decoderName === 'tcp' || 
+              packet.payload.payload.payload.decoderName === 'udp')
+            ) {
+                 // ignore the other types. we could instead add this check for sport on each of the checks above but that may result in records for both going in and response data. So instead just check we dont include them here
+                 
+                if ([53,80,443,110,143,993,995].indexOf(packet.payload.payload.payload.dport) == -1 &&
+                 [53,80,443,110,143,993,995].indexOf(packet.payload.payload.payload.sport) == -1) {
+                    dat.app.type = 'other '+packet.payload.payload.payload.decoderName+' '+packet.payload.payload.payload.dport+'>'+packet.payload.payload.payload.sport
+                }
         // if (MAKE_STATE_CHANGE_ON_HIDDEN_OTHER)
         //     cache.new_data.ptr(dat.siplocal ? dat.sip : dat.dip, 000);
 

@@ -29,7 +29,8 @@ var OUI_URL = 'http://standards-oui.ieee.org/oui/oui.txt';
 var OUI_TXT = __dirname + '/oui.txt';
 var FETCH_EVERY_N_DAYS = 30; // fetch oui.txt
 
-var debug = true;
+exports.debug = false;
+// exports.verbose = false; // print out a lot about ouiitems
 
 var ouiitems = {};
 
@@ -45,21 +46,26 @@ exports.start = function(cb) {
 };
 
 exports.lookup = function(oui, cb) {
+    // remove : and - in name
   var h6 = oui.split('-').join('').split(':').join('').toUpperCase();
-
   if (h6.length != 6) return cb(new Error('not an OUI'), null);
-
+  // change to int which is ouiitems are indexed
+  h6 = parseInt(h6.trimLeft('0'), 16)
+  
     cb(null, ouiitems[h6]);
 };
 
+exports.show = function() {
+    console.log(ouiitems)
+};
 
 var fetch = function(cb) {
     // handle cases where ieee site offline or network unavailble by loading to tmp
-    debug && cb(null, "begin downloading "+OUI_URL+". To avoid, stop process and touch "+OUI_TXT);
+    exports.debug && cb(null, "begin downloading "+OUI_URL+". To avoid, stop process and touch "+OUI_TXT);
 
     var f = fs.createWriteStream(OUI_TXT+'.tmp');
     f.on('finish', function(){
-        debug && cb(null, "finished downloading "+OUI_URL);
+        exports.debug && cb(null, "finished downloading "+OUI_URL);
         fs.rename(OUI_TXT+'.tmp', OUI_TXT, function() {
             parse(cb) }); });
     f.on('error', function(){
@@ -88,9 +94,7 @@ var fetch = function(cb) {
 */
 
 var parse = function(cb) {
-  var info = { count: 0, errors: 0 };
-
-  debug && cb(null, "begin parsing "+OUI_TXT);
+  exports.debug && cb(null, "begin parsing "+OUI_TXT);
   var rl = readline .createInterface({ input: fs.createReadStream(OUI_TXT)});
 
   rl.on('line', function(line) {
@@ -100,8 +104,10 @@ var parse = function(cb) {
       if (line.length > 15) {
         h6 = line.substr(0,6);
         line = line.substr(7).trimLeft();
-        if (line.substr(0,9) === '(base 16)')
+        if (line.substr(0,9) === '(base 16)') {
             name = line.substr(10).trimLeft();
+            exports.debug && console.log('line h6,name', h6,h6)
+        }
       }
 
       if ((!!h6) && (h6.length === 6) && (!!name) && (name.length > 0)) {
@@ -111,12 +117,13 @@ var parse = function(cb) {
   });
 
   rl.on('close', function(){
-      debug && cb(null, "finished parsing");
+      exports.debug && cb(null, "finished parsing. Entries: "+Object.keys(ouiitems).length);
   });
 };
 
 exports.start(function(err, info) {
   if (!!err) return console.log('sniffer_cache_oui: ' + err.message);
-
-  if (!!info) console.log('sniffer_cache_oui: ' + JSON.stringify(info));
+  if (!!info) 
+    console.log('sniffer_cache_oui: ' + JSON.stringify(info));
 });
+
